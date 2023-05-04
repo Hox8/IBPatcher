@@ -13,11 +13,16 @@ It is an easy-to-use commandline interface .....
 <br>
 
 ## Installation
-No installation, just unzip to your desktop.
+No installation - simply download the release for your platform and unzip to desktop
 
 ## Usage
 Usage<br>
-Mods downloaded from the Discord's Google Drive can be placed in one of IBPatcher's mod folders
+Drag-and-drop IPA/Zip file onto the patcher<br>
+Generate required folders<br>
+Mods downloaded from the Discord's Google Drive can be placed in one of IBPatcher's mod folders<br>
+Place mods in folders<br>
+Do again for results<br>
+Create folder named 'Output' if want output to files rather than ipa<br>
 
 ## Supported Mod Formats
 
