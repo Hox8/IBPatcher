@@ -19,8 +19,8 @@ The latest version of IBPatcher can be downloaded from the following sources:
 
 ## Features
 - Supports Infinity Blade I, Infinity Blade II, Infinity Blade III, and VOTE!!!
-- Basic Unreal Package deserialization, so mods work for both 32-bit and 64-bit versions of the games (.json mods only)
-- Full Coalesced encryption and deserialization, allowing distributable patches for configuration files (.json mods only)
+- Basic Unreal Package deserialization, allowing mods to function on both 64-bit and 32-bit versions of the games (.json mods only)
+- Full support for Coalesced encryption, decryption, and deserialization, allowing for distributable config file mods (.json mods only)
 - Automatically unpacks required files from a zip/ipa, applies modifications, and repackages the archive
 - Documentation for each mod format can be found [here](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
 
