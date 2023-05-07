@@ -4,7 +4,7 @@
 
 # IBPatcher
 ## What is it?
-IBPatcher is a versatile modding tool designed for the Infinity Blade series on iOS which streamlines the process of collating and applying a large range of user modifications through a small number of clicks.
+IBPatcher is a versatile modding tool designed for the iOS Infinity Blade series which streamlines the process of collating and applying a large range of user modifications through a small number of clicks.
 
 <p align="center">
   <img src="https://user-images.githubusercontent.com/125164507/236659991-b90a322b-eeff-4a46-9915-5f62ca9cc2c8.png" width=1024>
