@@ -22,7 +22,7 @@ The latest version of IBPatcher can be downloaded from the following sources:
 - Basic Unreal Package deserialization, allowing mods to function on both 64-bit and 32-bit versions of the games (.json mods only)
 - Full support for Coalesced encryption, decryption, and deserialization, allowing for distributable config file mods (.json mods only)
 - Automatically unpacks required files from a zip/ipa, applies modifications, and repackages the archive
-- Documentation for each mod format can be found [here](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
+- Documentation for each mod format can be found [here](ModFormat.md)
 
 ## Usage
 1. Once IBPatcher has been extracted, an .ipa or .zip file of an Infinity Blade game is required. You can fetch these and more from the [Infinity Blade Discord](https://discord.gg/S7jCh9N), or you can try grabbing a copy from [Archive.org](https://archive.org/). Drag and drop the downloaded game onto the patcher to create the required files.<br><br>
