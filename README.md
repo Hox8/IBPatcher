@@ -4,7 +4,7 @@
 
 # IBPatcher
 ## What is it?
-IBPatcher is a versatile modding tool designed for the Infinity Blade series on iOS, simplifying the process of collating and applying wide ranges of user mods to just a few clicks.
+IBPatcher is a versatile modding tool designed for the Infinity Blade series on iOS which streamlines the process of collating and applying a large range of user modifications through a small number of clicks.
 
 <p align="center">
   <img src="https://user-images.githubusercontent.com/125164507/236659991-b90a322b-eeff-4a46-9915-5f62ca9cc2c8.png" width=1024>
@@ -26,6 +26,6 @@ The latest version of IBPatcher can be downloaded from the following sources:
 
 ## Usage
 1. Once IBPatcher has been extracted, an .ipa or .zip file of an Infinity Blade game is required. You can fetch these and more from the [Infinity Blade Discord](https://discord.gg/S7jCh9N), or you can try grabbing a copy from [Archive.org](https://archive.org/). Drag and drop the downloaded game onto the patcher to create the required files.<br><br>
-2. A large collection of community-made mods is available on a Google Drive folder available [here](https://drive.google.com/drive/folders/1qg4Luhq2tjJqxfI3wF5MZhXQdQegIgui). More information can be found in #ibmodding-guide in the Infinity Blade Discord server<br><br>
+2. A large collection of community-made mods is available on a Google Drive folder available [here](https://drive.google.com/drive/folders/1796Y97dCVlQMZpSiXQ1xh4ejHlNv50VO). More information can be found in #ibmodding-guide in the Infinity Blade Discord server<br><br>
 3. Place the mods you downloaded into the appropriate mods folder generated earlier. You can now run the patcher to create a modded .ipa of the game.<br><br>
 4. If you'd rather have the patcher output loose files instead, you can do that! Create a folder named 'Output' in the same directory and re-run the patcher. All modified files will be placed in the the Output folder<br>
