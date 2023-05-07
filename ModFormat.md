@@ -34,7 +34,38 @@ The .INI format was designed by Niko_KV and released on the 8th of October, 2022
 <br>
 
 ## JSON format
-The .JSON format was designed by myself, and follows a hierarchical structure, i.e. multiple patches being child to an object, which is child to a file, which is child to the root json object. It is as follows:
+The .JSON format was designed by myself and follows a hierarchical structure as shown below.<br>
+ 
+ - Root
+    - Files
+      - Objects
+        - Patches
+      - Inis
+        - Sections
+
+<br>Every JSON mod has a Root object which contains metadata and a list of files being modified.<br>
+### Root
+Parameter     | Explanation
+------------- | -------------
+Name*         | The internal name of the mod. If the mod cannot be read, or if this value is null, the filename is used instead
+Description*  | A summary describing what the mod does
+Author*       | The name of the mod's creator
+Version*      | The version of the mod, if applicable. Defaults to v1.0.0
+Date*         | The date the mod was published
+Game          | The game the mod is intended for. If the game does not equal the loaded ipa, the mod is skipped
+Files         | An array of files this mod is applying patches to |
+
+<br>
+
+### File
+Parameter     | Explanation
+------------- | -------------
+Filename      | The name of the file to be patched in the 'Payload/{Game}.app/CookedIPhone/' directory
+Filetype      | The type of file to be patched. Types include: "UPK" and "Coalesced"
+Objects*      | Contains the array of objects each containing patches. Only if filetype is "UPK"
+Inis*         | Contains the array of inis each containing sections. Only if filetype is "Coalesced" |
+
+<br>
 
 ## Bin mods
 Placeholder
