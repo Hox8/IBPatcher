@@ -40,7 +40,7 @@ The .INI format was designed by Niko_KV and released on the 8th of October, 2022
 
 @TODO include data type column to the json tables
 ## JSON format
-The .JSON format was designed by myself and follows a hierarchical structure as shown below. Additional space filler is needed, what to fill it with...<br>
+The .JSON format was designed by myself and follows a hierarchical structure as shown below. @TODO Additional space filler is needed, what to fill it with...<br>
  
  - Root
     - Files
@@ -85,8 +85,8 @@ Parameter     | Explanation
 Type    | The name of the object as it appears inside the UPK file
 Offset  | An integer representing the patch's offset, relative to its parent object
 Value   | The data to be patched to the file. 'Type' influences how this data is converted into bytes. Only 'String' and 'Byte' types need to be in string form. @TODO verify boolean
-Size    | An optional field to specify the maximum length for a string patch, and to add a null terminator to the string. String values shorter than 'Size' will be padded with '0B' tokens. Negative values indicate unicode encoding.
-Enabled | Optional boolean field. If set to false, the patch will be ignored entirely. Defaults to true |
+Size*    | An optional field to specify the maximum length for a string patch, and to add a null terminator to the string. String values shorter than 'Size' will be padded with '0B' tokens. Negative values indicate unicode encoding.
+Enabled* | Optional boolean field. If set to false, the patch will be ignored entirely. Defaults to true |
 
 <br>
 
@@ -95,21 +95,21 @@ Parameter     | Explanation
 ------------- | -------------
 IniName    | The path of the ini as it appears inside a coalesced file, e.g., '..\\..\\SwordGame\\Config\\SwordItems.ini'
 Sections   | The list of sections to @TODO reword do things with inside an ini file
-Mode       | An optional field to dictate how the ini file should be handled: 'Delete' deletes the ini file, 'Overwrite' wipes the file before writing and 'Append' adds to the file as-is. Defaults to 'Append'
-Enabled    | Optional boolean field. If set to false, the ini and all its sections will be ignored entirely. Defaults to true |
+Mode*       | An optional field to dictate how the ini file should be handled: 'Delete' deletes the ini file, 'Overwrite' wipes the file before writing and 'Append' adds to the file as-is. Defaults to 'Append'
+Enabled*    | Optional boolean field. If set to false, the ini and all its sections will be ignored entirely. Defaults to true |
 
 ### Section
 Parameter     | Explanation
 ------------- | -------------
 SectionName    | The name of the section to place of all the key/value pairs in the 'Properties' array into
 Properties       | The string array of key/value pairs to place under a section. Key/Value pairs are in standard ini format, e.g., 'StartingPlayerMoney=1000'
-Mode       | An optional field to dictate how the section should be handled: 'Delete' deletes the section and all its properties, 'Overwrite' clears the section's properties before writing and 'Append' adds to the section as-is. Defaults to 'Append'
-Enabled    | Optional boolean field. If set to false, the section will be ignored entirely. Defaults to true |
+Mode*       | An optional field to dictate how the section should be handled: 'Delete' deletes the section and all its properties, 'Overwrite' clears the section's properties before writing and 'Append' adds to the section as-is. Defaults to 'Append'
+Enabled*    | Optional boolean field. If set to false, the section will be ignored entirely. Defaults to true |
 
 <br>
 
 ## Name and Object references
-Starting with v1.2, name and object references can be used inside of 'BYTE' datatypes. These allow mods to specify names and objects exactly rather than hardcoding byte values, which is useful not only for making modding easier, but enabling compatibility across versions where the indexes of names and objects change.
+Starting with v1.2, name and object references can be used inside of byte type patches. These allow mods to specify names and objects by name rather than hardcoding byte values, which is useful not only for making modding easier, but also enabling compatibility across versions where the indexes of names and objects change.
 
 ### Object references
 Denoted via square bracket encapsulation, e.g. [PlayerPawn]. Object references are looked up in the table of the current package and converted from an int32 index into a byte array
