@@ -38,12 +38,13 @@ The .INI format was designed by Niko_KV and released on the 8th of October, 2022
 >enabled  = false
 <br>
 
+@TODO include data type column to the json tables
 ## JSON format
 The .JSON format was designed by myself and follows a hierarchical structure as shown below. Additional space filler is needed, what to fill it with...<br>
  
  - Root
     - Files
-      - Objects
+      - Objectes
         - Patches
       - Inis
         - Sections
@@ -72,6 +73,41 @@ Inis*         | Contains the array of inis each containing sections. Only if fil
 
 <br>
 
+### Object
+Parameter     | Explanation
+------------- | -------------
+ObjectName    | The name of the object as it appears inside the UPK file
+Patches       | The array of patches the object is parent to |
+
+### Patch
+Parameter     | Explanation
+------------- | -------------
+Type    | The name of the object as it appears inside the UPK file
+Offset  | An integer representing the patch's offset, relative to its parent object
+Value   | The data to be patched to the file. 'Type' influences how this data is converted into bytes. Only 'String' and 'Byte' types need to be in string form. @TODO verify boolean
+Size    | An optional field to specify the maximum length for a string patch, and to add a null terminator to the string. String values shorter than 'Size' will be padded with '0B' tokens. Negative values indicate unicode encoding.
+Enabled | Optional boolean field. If set to false, the patch will be ignored entirely. Defaults to true |
+
+<br>
+
+### Ini
+Parameter     | Explanation
+------------- | -------------
+IniName    | The path of the ini as it appears inside a coalesced file, e.g., '..\\..\\SwordGame\\Config\\SwordItems.ini'
+Sections   | The list of sections to @TODO reword do things with inside an ini file
+Mode       | An optional field to dictate how the ini file should be handled: 'Delete' deletes the ini file, 'Overwrite' wipes the file before writing and 'Append' adds to the file as-is. Defaults to 'Append'
+Enabled    | Optional boolean field. If set to false, the ini and all its sections will be ignored entirely. Defaults to true |
+
+### Section
+Parameter     | Explanation
+------------- | -------------
+SectionName    | The name of the section to place of all the key/value pairs in the 'Properties' array into
+Properties       | The string array of key/value pairs to place under a section. Key/Value pairs are in standard ini format, e.g., 'StartingPlayerMoney=1000'
+Mode       | An optional field to dictate how the section should be handled: 'Delete' deletes the section and all its properties, 'Overwrite' clears the section's properties before writing and 'Append' adds to the section as-is. Defaults to 'Append'
+Enabled    | Optional boolean field. If set to false, the section will be ignored entirely. Defaults to true |
+
+<br>
+
 ## Name and Object references
 Starting with v1.2, name and object references can be used inside of 'BYTE' datatypes. These allow mods to specify names and objects exactly rather than hardcoding byte values, which is useful not only for making modding easier, but enabling compatibility across versions where the indexes of names and objects change.
 
@@ -85,9 +121,9 @@ Name instances can be specified in a name reference by using a comma delimiter (
 As an example, equipment items are defined by their type and an instance number. A name reference equivalent to the Infinity Blade (Sword_26) would look like: {Sword,26}. Name references are looked up in the name table of the current package and converted from the int32 index and its int32 instance number (default 0) to a byte array.
 
 ### Examples of object and name reference usage inside 'BYTE' values:
-- "value": "1B {LoadStartNewBloodline} 26 16 01 [UnlockedNewGamePlus] 01 [UnlockedNewGamePlus] 0B 0B 0B 0B 0B 0B 0B 0B 0B 0B 0B 0B"<br>
+- "value": "1B {LoadStartNewBloodline} 26 16 01 [UnlockedNewGamePlus] 01 [UnlockedNewGamePlus] 0B 0B 0B"<br>
 - "value": "{FlashItemWon}"<br>
-- "value": ""{Sword,139}"<br>
+- "value": "{Sword,139}"<br>
 
 ## Bin mods
 Bin mods were used to swap vanilla coalesced.bin mods for pre-modded ones. This functionality is no longer required since the addition of the .JSON format, but has been left included in the latest version of IBPatcher for convenience's sake. Json mods should be preferred when releasing public mods due to their interoperability with other coalesced mods.
