@@ -1,3 +1,5 @@
+# INCOMPLETE
+
 # Mod format documentation
 
 Brief overview of what this document's purpose is, how its data is structured
@@ -69,6 +71,9 @@ Objects*      | Contains the array of objects each containing patches. Only if f
 Inis*         | Contains the array of inis each containing sections. Only if filetype is "Coalesced" |
 
 <br>
+
+## Something about name and obj references
+Object references are denoted via square bracket encapsulation, e.g. '01 [PlayerPawn]'. Name references are denoted via curly brace encapsulation, e.g. {Sword,26}. Name reference instances are supported via ',' delimeter within a curly brace name reference. Both features are only available for 'BYTE' patch types
 
 ## Bin mods
 Placeholder
