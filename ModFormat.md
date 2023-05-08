@@ -72,11 +72,26 @@ Inis*         | Contains the array of inis each containing sections. Only if fil
 
 <br>
 
-## Something about name and obj references
-Object references are denoted via square bracket encapsulation, e.g. '01 [PlayerPawn]'. Name references are denoted via curly brace encapsulation, e.g. {Sword,26}. Name reference instances are supported via ',' delimeter within a curly brace name reference. Both features are only available for 'BYTE' patch types
+## Name and Object references
+Starting with v1.2, name and object references can be used inside of 'BYTE' datatypes. These allow mods to specify names and objects exactly rather than hardcoding byte values, which is useful not only for making modding easier, but enabling compatibility across versions where the indexes of names and objects change.
+
+### Object references
+Denoted via square bracket encapsulation, e.g. [PlayerPawn]. Object references are looked up in the table of the current package and converted from an int32 index into a byte array
+
+### Name references
+Denoted via curly brace encapsulation, e.g. {Sword}. Name references have two parts: The index to the name table, and its instance number (defaults to 0).<br>
+Name instances can be specified in a name reference by using a comma delimiter ( , ) and an integer.<br><br>
+
+As an example, equipment items are defined by their type and an instance number. A name reference equivalent to the Infinity Blade (Sword_26) would look like: {Sword,26}. Name references are looked up in the name table of the current package and converted from the int32 index and its int32 instance number (default 0) to a byte array.
+
+### Examples of object and name reference usage inside 'BYTE' values:
+- "value": "1B {LoadStartNewBloodline} 26 16 01 [UnlockedNewGamePlus] 01 [UnlockedNewGamePlus] 0B 0B 0B 0B 0B 0B 0B 0B 0B 0B 0B 0B"<br>
+- "value": "{FlashItemWon}"<br>
+- "value": ""{Sword,139}"<br>
 
 ## Bin mods
-Placeholder
+Bin mods were used to swap vanilla coalesced.bin mods for pre-modded ones. This functionality is no longer required since the addition of the .JSON format, but has been left included in the latest version of IBPatcher for convenience's sake. Json mods should be preferred when releasing public mods due to their interoperability with other coalesced mods.
 
 ## Command mods
-Placeholder
+Command "mods" are used to copy a commands txt file and optionally a UE3CommandLine.txt file to the target destination. If a UE3CommandLine.txt is not provided, it is generated during patching.<br><br>
+The commands text file is used to enter console commands to Infinity Blade on startup. Setting the FPS cap to 60, disabling shadows, and removing external links from the options menu are examples of what the commands "mod" can do.
