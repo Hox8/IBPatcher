@@ -57,7 +57,7 @@ namespace JsonTest2
     public class JsonIni
     {
         // REQUIRED
-        public string IniName;                  // The filename of the ini to modify within a coalesced file
+        public string IniPath;                  // The internal filepath of the ini to modify within a coalesced file
         public List<JsonSection> Sections;      // A list of all sections within an ini to update/delete
         public JsonMode Mode;                   // Influences whether inis are deleted, replaced, or added to
         public bool? Enabled;
@@ -75,7 +75,7 @@ namespace JsonTest2
         public bool? Enabled;       // If false, patch will be skipped during patching
 
         // INTERNAL
-        internal byte[] Bytes;        // Byte buffer to store interpreted string contents
+        public byte[] Bytes;        // Byte buffer to store interpreted string contents
     }
 
     public class JsonObject
@@ -102,7 +102,7 @@ namespace JsonTest2
     public class JsonRoot
     {
         // REQUIRED
-        public Shared.GameType Game;               // The game this mod is intended for
+        public Game Game;               // The game this mod is intended for
         public List<JsonFile> Files;        // List of all files this mod edits
 
         //OPTIONAL
@@ -123,7 +123,7 @@ namespace JsonTest2
     {
         public string ModName;
         public JsonRoot Mod;
-        public JsonError Error;
+        public JsonError Error;  // @TODO should initialize on init and set error flag to 'None'.
 
         public JsonMod(string jsonPath, IPA ipa, Mods mods)
         {
@@ -173,7 +173,7 @@ namespace JsonTest2
                     else if (e.Message.Contains("is invalid after a value."))
                     {
                         // Console.WriteLine(e.Message);
-                        Error.Message = $"Missing value delimiter, line {e.LineNumber}";
+                        Error.Message = $"Missing comma after value, line {e.LineNumber}";
                     }
                     // Incorrect value type exception
                     else if (e.Message.Contains("The JSON value could not be converted"))
@@ -183,7 +183,7 @@ namespace JsonTest2
                     // Invalid literal exception
                     else if (e.Message.Contains("is an invalid JSON literal."))
                     {
-                        Error.Message = $"Invalid literal, line {e.LineNumber}";
+                        Error.Message = $"Invalid value literal, line {e.LineNumber}";
                     }
                     else
                     {
@@ -230,21 +230,26 @@ namespace JsonTest2
 
     public abstract class CustomConverter<T> : JsonConverter<T>
     {
+        // @TODO this smells pretty bad. Also need to refactor ALL custom json errors
+        internal static void ThrowTryGetFailError(ref Utf8JsonReader reader, string propertyName, string location, JsonTokenType expectedTokenType)
+        {
+            throw new JsonModException($"{location} '{propertyName}' expected {(expectedTokenType == JsonTokenType.True ? "Boolean" : expectedTokenType)} value, got {reader.TokenType}");
+        }
         public static string TryGetString(ref Utf8JsonReader reader, string propertyName, string location)
         {
-            if (reader.TokenType != JsonTokenType.String) throw new JsonModException($"Bad value type for property '{propertyName}' in {location}. Expected '{JsonTokenType.String}', got '{reader.TokenType}'.");
+            if (reader.TokenType != JsonTokenType.String) ThrowTryGetFailError(ref reader, propertyName, location, JsonTokenType.String);
             return reader.GetString();
         }
         public static int TryGetInt(ref Utf8JsonReader reader, string propertyName, string location)
         {
-            if (reader.TokenType != JsonTokenType.Number) throw new JsonModException($"Bad value type for property '{propertyName}' in {location}. Expected '{JsonTokenType.Number}', got '{reader.TokenType}'.");
+            if (reader.TokenType != JsonTokenType.Number) ThrowTryGetFailError(ref reader, propertyName, location, JsonTokenType.Number);
             return reader.GetInt32();
         }
         public static bool TryGetBool(ref Utf8JsonReader reader, string propertyName, string location)
         {
             if (reader.TokenType != JsonTokenType.True && reader.TokenType != JsonTokenType.False)
             {
-                throw new JsonModException($"Bad value type for property '{propertyName}' in {location}. Expected 'Boolean', got '{reader.TokenType}'.");
+                ThrowTryGetFailError(ref reader, propertyName, location, JsonTokenType.True);
             }
             return reader.GetBoolean();
         }
@@ -256,6 +261,7 @@ namespace JsonTest2
 
     public class JsonSectionConverter : CustomConverter<JsonSection>
     {
+        private const string location = "JsonSection";
         public override JsonSection? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             JsonSection section = new() { Mode = JsonMode.Append, Enabled = true };
@@ -271,13 +277,14 @@ namespace JsonTest2
                     switch (propertyName.ToUpper())
                     {
                         case "SECTIONNAME":
-                            section.SectionName = TryGetString(ref reader, "SectionName", "Section");
+                            section.SectionName = TryGetString(ref reader, "sectionName", location);
                             break;
                         case "PROPERTIES":
+                            if (reader.TokenType != JsonTokenType.StartArray) throw new JsonModException($"{location} property 'Properties' must be an array of strings");
                             section.Properties = JsonSerializer.Deserialize(ref reader, typeof(string[]), PersistentJsonContext.Context) as string[];
                             break;
                         case "MODE":
-                            string value = TryGetString(ref reader, "Mode", "Ini");
+                            string value = TryGetString(ref reader, "mode", location);
                             section.Mode = value.ToUpper() switch
                             {
                                 "APPEND" or "DEFAULT" => JsonMode.Append,
@@ -287,22 +294,23 @@ namespace JsonTest2
                             };
                             break;
                         case "ENABLED":
-                            section.Enabled = TryGetBool(ref reader, "Enabled", "Section");
+                            section.Enabled = TryGetBool(ref reader, "enabled", location);
                             break;
                         default:
-                            if (propertyName.StartsWith("//") || propertyName.StartsWith(';')) continue;
-                            throw new JsonModException($"'{propertyName}' is not a valid JsonSection property");
+                            if (propertyName.StartsWith("//")) continue;
+                            throw new JsonModException($"'{propertyName}' is not a valid {location} property");
                     }
                 }
             }
 
-            if (section.SectionName is null) throw new JsonModException("Required property 'SectionName' was never passed");
+            if (section.SectionName is null) throw new JsonModException($"Required {location} property 'sectionName' was never passed");
             return section;
         }
     }
 
     public class JsonIniConverter : CustomConverter<JsonIni>
     {
+        private const string location = "JsonIni";
         public override JsonIni? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             JsonIni ini = new() { Mode = JsonMode.Append, Enabled = true };
@@ -317,39 +325,41 @@ namespace JsonTest2
 
                     switch (propertyName.ToUpper())
                     {
-                        case "ININAME":
-                            ini.IniName = TryGetString(ref reader, "IniName", "Ini");
+                        case "INIPATH":
+                            ini.IniPath = TryGetString(ref reader, "iniPath", location);
                             break;
                         case "SECTIONS":
+                            if (reader.TokenType != JsonTokenType.StartArray) throw new JsonModException($"{location} property 'sections' must be an array of JsonSection objects");
                             ini.Sections = JsonSerializer.Deserialize(ref reader, typeof(List<JsonSection>), PersistentJsonContext.Context) as List<JsonSection>;
                             break;
                         case "MODE":
-                            string value = TryGetString(ref reader, "Mode", "Ini");
+                            string value = TryGetString(ref reader, "mode", location);
                             ini.Mode = value.ToUpper() switch
                             {
                                 "APPEND" or "DEFAULT" => JsonMode.Append,
                                 "DELETE" => JsonMode.Delete,
                                 "OVERWRITE" => JsonMode.Overwrite,
-                                _ => throw new JsonModException($"'{value}' is not a valid mode"),
+                                _ => throw new JsonModException($"'{value}' is not a valid mode"), // @TODO what mode? Be more specific
                             };
                             break;
                         case "ENABLED":
-                            ini.Enabled = TryGetBool(ref reader, "Enabled", "Ini");
+                            ini.Enabled = TryGetBool(ref reader, "enabled", location);
                             break;
                         default:
-                            if (propertyName.StartsWith("//") || propertyName.StartsWith(';')) continue;
-                            throw new JsonModException($"'{propertyName}' is not a valid JsonIni property");
+                            if (propertyName.StartsWith("//")) continue;
+                            throw new JsonModException($"'{propertyName}' is not a valid {location} property");
                     }
                 }
             }
 
-            if (ini.IniName is null) throw new JsonModException("Required property 'IniName' was never passed");
+            if (ini.IniPath is null) throw new JsonModException("Required property 'iniPath' was never passed");
             return ini;
         }
     }
 
     public class JsonPatchConverter : CustomConverter<JsonPatch>
     {
+        private const string location = "JsonPatch";
         public override JsonPatch? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             PatchType? type = null;
@@ -369,7 +379,7 @@ namespace JsonTest2
                     switch (propertyName.ToUpper())
                     {
                         case "TYPE":
-                            string value = TryGetString(ref reader, "Type", "Patch");
+                            string value = TryGetString(ref reader, "type", location);
 
                             type = value.ToUpper() switch
                             {
@@ -379,32 +389,32 @@ namespace JsonTest2
                                 "INT32" or "INT" or "INTEGER" => PatchType.Int32,
                                 "FLOAT" => PatchType.Float,
                                 "STRING" => PatchType.String,
-                                _ => throw new JsonModException($"'{value}' is not a valid patch type")
+                                _ => throw new JsonModException($"'{value}' is not a valid {location} data type")
                             };
                             break;
                         case "OFFSET":
-                            offset = TryGetInt(ref reader, "Offset", "Patch");
+                            offset = TryGetInt(ref reader, "offset", location);
                             break;
                         case "VALUE":
                             patchValue = JsonDocument.ParseValue(ref reader).RootElement;   // process once finished reading
                             break;
                         case "SIZE":
-                            size = TryGetInt(ref reader, "Size", "Patch");
+                            size = TryGetInt(ref reader, "size", location);
                             break;
                         case "ENABLED":
-                            enabled = TryGetBool(ref reader, "Enabled", "Patch");
+                            enabled = TryGetBool(ref reader, "enabled", location);
                             break;
                         default:
-                            if (propertyName.StartsWith("//") || propertyName.StartsWith(';')) continue;
-                            throw new JsonModException($"'{propertyName}' is not a valid JsonPatch property");
+                            if (propertyName.StartsWith("//")) continue;
+                            throw new JsonModException($"'{propertyName}' is not a valid {location} property");
                     }
                 }
             }
 
-            if (type is null) throw new JsonModException("Required property 'Type' was never passed");
-            if (offset is null) throw new JsonModException("Required property 'Offset' was never passed");
-            if (patchValue is null) throw new JsonModException("Required property 'Value' was never passed");
-            if (size is not null && type != PatchType.String) throw new JsonModException("Property 'Size' is only applicable for 'String' types");
+            if (type is null) throw new JsonModException($"Required {location} property 'type' was never passed");
+            if (offset is null) throw new JsonModException($"Required {location} property 'offset' was never passed");
+            if (patchValue is null) throw new JsonModException($"Required {location} property 'value' was never passed");
+            if (size is not null && type != PatchType.String) throw new JsonModException($"{location} property 'size' is only applicable for 'String' types");
 
             return new JsonPatch()
             {
@@ -419,6 +429,7 @@ namespace JsonTest2
 
     public class JsonObjectConverter : CustomConverter<JsonObject>
     {
+        private const string location = "JsonObject";
         public override JsonObject? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             JsonObject uobject = new();
@@ -434,27 +445,28 @@ namespace JsonTest2
                     switch (propertyName.ToUpper())
                     {
                         case "OBJECTNAME":
-                            uobject.ObjectName = TryGetString(ref reader, "ObjectName", "Object");
+                            uobject.ObjectName = TryGetString(ref reader, "objectName", location);
                             break;
                         case "PATCHES":
-                            if (reader.TokenType != JsonTokenType.StartArray) throw new JsonModException("Property 'Patches' in JsonObject must be an array of JsonPatch objects");
+                            if (reader.TokenType != JsonTokenType.StartArray) throw new JsonModException($"{location} property 'Patches' must be an array of JsonPatch objects");
                             uobject.Patches = JsonSerializer.Deserialize(ref reader, typeof(List<JsonPatch>), PersistentJsonContext.Context) as List<JsonPatch>;
                             break;
                         default:
-                            if (propertyName.StartsWith("//") || propertyName.StartsWith(';')) continue;
-                            throw new JsonModException($"'{propertyName}' is not a valid JsonObject property");
+                            if (propertyName.StartsWith("//")) continue;
+                            throw new JsonModException($"'{propertyName}' is not a valid {location} property");
                     }
                 }
             }
 
-            if (uobject.ObjectName is null) throw new JsonModException("Required property 'ObjectName' was never passed");
-            if (uobject.Patches is null) throw new JsonModException("Required property 'Patches' was never passed");
+            if (uobject.ObjectName is null) throw new JsonModException($"Required {location} property 'objectName' was never passed");
+            if (uobject.Patches is null) throw new JsonModException($"Required {location} property 'patches' was never passed");
             return uobject;
         }
     }
 
     public class JsonFileConverter : CustomConverter<JsonFile>
     {
+        private const string location = "JsonFile";
         public override JsonFile? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             JsonFile file = new();
@@ -470,49 +482,48 @@ namespace JsonTest2
                     switch (propertyName.ToUpper())
                     {
                         case "FILENAME":
-                            // Immediately check if file exists from ref IPA
-                            file.FileName = TryGetString(ref reader, "Filename", "File");
-                            if (file.FileName.Length == 0) file.FileName = null;
+                            file.FileName = TryGetString(ref reader, "fileName", location);
+                            if (file.FileName.Length == 0) file.FileName = null;    // ...does this do anything?
                             break;
 
                         case "FILETYPE":
-                            string value = TryGetString(ref reader, "Filetype", "File");
+                            string value = TryGetString(ref reader, "fileType", location);
 
                             file.FileType = value.ToUpper() switch
                             {
                                 "UPK" => JsonType.UPK,
                                 "COALESCED" => JsonType.Coalesced,
-                                _ => throw new JsonModException($"'{value}' is not a valid value for 'Filetype'"),
+                                _ => throw new JsonModException($"'{value}' is not a valid {location} fileType"),
                             };
                             break;
 
                         case "OBJECTS":
-                            if (reader.TokenType != JsonTokenType.StartArray) throw new JsonModException("Property 'Objects' in File must be an array of JsonObject objects");
+                            if (reader.TokenType != JsonTokenType.StartArray) throw new JsonModException($"{location} property 'Objects' must be an array of JsonObject objects");
                             file.Objects = JsonSerializer.Deserialize(ref reader, typeof(List<JsonObject>), PersistentJsonContext.Context) as List<JsonObject>;
                             break;
 
                         case "INIS":
-                            if (reader.TokenType != JsonTokenType.StartArray) throw new JsonModException("Property 'Inis' in File must be an array of JsonIni objects");
+                            if (reader.TokenType != JsonTokenType.StartArray) throw new JsonModException($"{location} property 'Inis' must be an array of JsonIni objects");
                             file.Inis = JsonSerializer.Deserialize(ref reader, typeof(List<JsonIni>), PersistentJsonContext.Context) as List<JsonIni>;
                             break;
                         default:
-                            if (propertyName.StartsWith("//") || propertyName.StartsWith(';')) continue;
+                            if (propertyName.StartsWith("//")) continue;
                             throw new JsonModException($"'{propertyName}' is not a valid JsonFile property");
                     }
                 }
             }
 
-            if (file.FileName is null) throw new JsonModException("Required property 'FileName' was never passed");
-            if (file.FileType is null) throw new JsonModException("Required property 'FileType' was never passed");
+            if (file.FileName is null) throw new JsonModException($"Required {location} property 'fileName' was never passed");
+            if (file.FileType is null) throw new JsonModException($"Required {location} property 'fileType' was never passed");
             if (file.FileType == JsonType.UPK)
             {
-                if (file.Objects is null) throw new JsonModException($"No UObjects were provided for {file.FileName}");
-                if (file.Inis is not null) throw new JsonModException($"Inis cannot be passed if FileType is 'UPK'");
+                if (file.Objects is null) throw new JsonModException($"No {location} UObjects were provided for {file.FileName}");
+                if (file.Inis is not null) throw new JsonModException($"{location} Inis cannot be passed if 'fileType' is \"UPK\"");
             }
             else  // JsonType.Coalesced
             {
-                if (file.Inis is null) throw new JsonModException($"No Inis were provided for {file.FileName}");
-                if (file.Objects is not null) throw new JsonModException("UObjects cannot be passed if FileType is 'Coalesced'");
+                if (file.Inis is null) throw new JsonModException($"No {location} Inis were provided for {file.FileName}");
+                if (file.Objects is not null) throw new JsonModException($"{location} UObjects cannot be passed if 'fileType' is \"Coalesced\"");
             }
             return file;
         }
@@ -520,11 +531,12 @@ namespace JsonTest2
 
     public class JsonModConverter : CustomConverter<JsonRoot>
     {
+        private const string location = "JsonRoot";
         public override JsonRoot Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             if (reader.TokenType != JsonTokenType.StartObject)
             {
-                throw new JsonException("[DEBUG] Expected StartObject (JsonBase)");
+                throw new JsonModException("Bad JSON format; did not start with root object");
             }
 
             JsonRoot root = new();
@@ -540,39 +552,39 @@ namespace JsonTest2
                     switch (propertyName.ToUpper())
                     {
                         case "NAME":
-                            root.Name = TryGetString(ref reader, "Name", "Root");
+                            root.Name = TryGetString(ref reader, "name", location);
                             break;
                         case "DESCRIPTION":
-                            root.Description = TryGetString(ref reader, "Description", "Root");
+                            root.Description = TryGetString(ref reader, "description", location);
                             break;
                         case "GAME":
-                            string value = TryGetString(ref reader, "Game", "Root");
+                            string value = TryGetString(ref reader, "game", location);
 
                             root.Game = Mods.RemoveWhitespace(value.ToUpper()) switch
                             {
-                                "INFINITYBLADEIII" or "INFINITYBLADE3" or "IB3" => Shared.GameType.IB3,
-                                "INFINITYBLADEII" or "INFINITYBLADE2" or "IB2" => Shared.GameType.IB2,
-                                "INFINITYBLADEI" or "INFINITYBLADE1" or "IB1" => Shared.GameType.IB1,
-                                "VOTE!!!" or "VOTE" => Shared.GameType.VOTE,
+                                "INFINITYBLADEIII" or "INFINITYBLADE3" or "IB3" => Game.IB3,
+                                "INFINITYBLADEII" or "INFINITYBLADE2" or "IB2" => Game.IB2,
+                                "INFINITYBLADEI" or "INFINITYBLADE1" or "IB1" => Game.IB1,
+                                "VOTE!!!" or "VOTE" => Game.VOTE,
                                 _ => throw new JsonModException($"'{value}' is not a valid IB-series game"),
                             };
                             break;
                         case "AUTHOR":
-                            root.Author = TryGetString(ref reader, "Author", "Root");
+                            root.Author = TryGetString(ref reader, "author", location);
                             break;
                         case "DATE":
-                            root.Date = TryGetString(ref reader, "Date", "Root");
+                            root.Date = TryGetString(ref reader, "date", location);
                             break;
                         case "VERSION":
-                            root.Version = TryGetString(ref reader, "Version", "Root");
+                            root.Version = TryGetString(ref reader, "version", location);
                             break;
                         case "FILES":
-                            if (reader.TokenType != JsonTokenType.StartArray) throw new JsonModException("Property 'Files' in Root must be an array of JsonFile objects");
+                            if (reader.TokenType != JsonTokenType.StartArray) throw new JsonModException($"{location} property 'Files' must be an array of JsonFile objects");
                             root.Files = JsonSerializer.Deserialize(ref reader, typeof(List<JsonFile>), PersistentJsonContext.Context) as List<JsonFile>;
                             break;
                         default:
-                            if (propertyName.StartsWith("//") || propertyName.StartsWith(';')) continue;
-                            throw new JsonModException($"'{propertyName}' is not a valid JsonRoot property");
+                            if (propertyName.StartsWith("//")) continue;
+                            throw new JsonModException($"'{propertyName}' is not a valid {location} property");
                     }
                 }
             }

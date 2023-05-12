@@ -1,0 +1,3 @@
+[submodule "UnrealLib"]
+	path = UnrealLib
+	url = https://github.com/Hox8/UnrealLib

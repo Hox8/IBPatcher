@@ -41,14 +41,14 @@ namespace IBPatcher
         private static void InfoString(int MaxTextLength)
         {
             Console.WriteLine($"{new string('=', MaxTextLength + 10)}");
-            PrintColored("IBPatcher v1.2.0", ConsoleColor.Green, doNewline: false);
-            Console.WriteLine(" - BETA 4\nCopyright (C) 2023 Hox, GPL v3.0");
+            PrintColored("IBPatcher v1.2.1", ConsoleColor.Green, doNewline: false);
+            Console.WriteLine("\nCopyright © 2023 Hox, GPL v3.0");
             Console.WriteLine(new string('=', MaxTextLength + 10));
         }
 
         static void Main(string[] args)
         {
-            Console.OutputEncoding = Encoding.UTF8; // Allows non-Latin characters to be shown in the console (rather than just '?????')
+            Console.OutputEncoding = Encoding.UTF8; // Allows non-Latin characters to be shown in the console
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);  // @TODO Inefficient because it adds ALL codepages instead of just IBM437
             int MaxTextLength = 50;
 
@@ -64,7 +64,8 @@ namespace IBPatcher
             var ipa = new IPA(args[0]);
             if (ipa.Error != IPA.ZipError.None)
             {
-                Console.WriteLine(ipa.GetErrorString());
+                InfoString(MaxTextLength);
+                Console.WriteLine($"\n{ipa.GetErrorString()}");
                 Close();
                 return;
             }

@@ -22,6 +22,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using UnrealLib;
+using UnrealLib.Core;
 using UnrealLib.Coalesced;
 
 namespace IBPatcher
@@ -228,47 +229,44 @@ namespace IBPatcher
                 if (!char.IsWhiteSpace(c)) sb.Append(c);
             }
 
-            // Find and convert any object or name references('[]' and '{}')
-            if (contents.Contains('{'))  // Name references
+            if (contents.Contains('{')) // Convert any name references ('{}') using regex matching
             {
                 foreach (Match match in RegexNameReference.Matches(sb.ToString()))
                 {
-                    string currentReference = match.Groups[1].Value;    // Name as it appears inside the patch, e.g. {Sword,129}
-                    string[] sub = currentReference.Split(',', 2);
+                    string[] sub = match.Groups[1].Value.Split(',', 2);
                     int instance = 0;
 
-                    if (sub.Length == 2)    // If an instance is provided (_{number}), replace the instance before we process the name
+                    if (sub.Length == 2)    // If an instance was provided, try and parse it
                     {
-                        if (int.TryParse(sub[1], out instance))
+                        try
                         {
-                            instance += 1;  // FName 'Instance' needs to be +1'd
+                            instance = int.Parse(sub[1]) + 1;
                         }
-                        else
+                        catch
                         {
                             bytes = default;
                             return ModError.BadFNameInstance;
                         }
                     }
 
-                    int nameReference = UPK.GetNameTableIndex(sub[0]);
-                    if (nameReference == 0)
+                    int nameIndex = UPK.GetNameIndex(sub[0]);
+                    if (nameIndex == -1)
                     {
                         bytes = default;
                         return ModError.BadFName;
                     }
 
-                    string _name = BinaryPrimitives.ReverseEndianness(nameReference).ToString("X8");
+                    string _name = BinaryPrimitives.ReverseEndianness(nameIndex).ToString("X8");
                     string _instance = BinaryPrimitives.ReverseEndianness(instance).ToString("X8");
                     sb.Replace(match.Value, $"{_name}{_instance}");
                 }
             }
-            if (contents.Contains('['))  // Object references
+
+            if (contents.Contains('['))  // Object references ('[]')
             {
                 foreach (Match match in RegexObjectReference.Matches(sb.ToString()))
                 {
-                    string currentReference = match.Groups[1].Value;
-
-                    int objectIndex = UPK.FindObject(currentReference);
+                    int objectIndex = UPK.GetObjectIndex(match.Groups[1].Value);
                     if (objectIndex == 0)
                     {
                         bytes = default;
@@ -447,7 +445,7 @@ namespace IBPatcher
         /// <summary>
         /// Performs final processing on mods. Requires access to UPK streams
         /// </summary>
-        public void ProcessMods()  // @TODO get a better name
+        public void ProcessMods()  // @TODO use a better name
         {
             foreach (IniMod ini in IniMods)
             {
@@ -458,9 +456,10 @@ namespace IBPatcher
                 }
             }
 
-            // Coalesced JSON mods do not need processing?
-            foreach (JsonMod json in JsonMods)  //@TODO errors are applied but loop does not fully break. Errors will be overwritten, so fix this asap
+            // @TODO dirty fix to break out of all loops on error. Needs a proper implementation
+            foreach (JsonMod json in JsonMods)
             {
+                processModsStart:
                 if (json.Error is not null) continue;
 
                 foreach (JsonFile file in json.Mod.Files)
@@ -469,27 +468,28 @@ namespace IBPatcher
                     {
                         foreach (JsonObject uobj in file.Objects)
                         {
-                            int UObjectIndex = UPKStreams[file.FileName].FindObject(uobj.ObjectName);
-                            if (UObjectIndex == 0)
+                            int UObjectIndex = UPKStreams[file.FileName].GetObjectIndex(uobj.ObjectName);
+
+                            if (UObjectIndex < 1)
                             {
-                                json.Error = new JsonError() { Error = ModError.BadUObject };
-                                break;
-                            }
-                            else if (UObjectIndex < 0)
-                            {
-                                json.Error = new JsonError() { Error = ModError.ObjectNotExport };
-                                break;
+                                json.Error = new JsonError() { Error = UObjectIndex == 0 ? ModError.BadUObject : ModError.ObjectNotExport };
+                                goto processModsStart;
                             }
 
-                            FObjectExport exportEntry = UPKStreams[file.FileName].Header.ExportTable[UObjectIndex - 1];
+                            FObjectExport exportEntry = UPKStreams[file.FileName].Exports[UObjectIndex - 1];
                             uobj.UObjectOffsetInPackage = exportEntry.SerialOffset;
                             uobj.UObjectSerialSize = exportEntry.SerialSize;
 
                             foreach (JsonPatch patch in uobj.Patches)
                             {
                                 ModError error = ParsePatch(patch.Value, UPKStreams[file.FileName], patch.Type, patch.Size, out patch.Bytes);
-                                if (error != ModError.None) json.Error = new() { Error = error };
-                                if (patch.Offset + patch.Bytes.Length > uobj.UObjectSerialSize) json.Error = new() { Error = ModError.UObjectOverflow };
+
+                                if (error == ModError.None && patch.Offset + patch.Bytes.Length > uobj.UObjectSerialSize) error = ModError.UObjectOverflow;
+                                if (error != ModError.None)
+                                {
+                                    json.Error = new() { Error = error };
+                                    goto processModsStart;
+                                }
                             }
                         }
                     }
@@ -512,9 +512,9 @@ namespace IBPatcher
                 foreach (IniPatch patch in ini.Patches)
                 {
                     if (!patch.Enabled) continue;
-                    UPKStreams[patch.File].uw.BaseStream.Position = patch.Offset;
-                    UPKStreams[patch.File].uw.Write(patch.Bytes);
-                    UPKStreams[patch.File].HasBeenModified = true;  // If false, file will not be saved on final
+                    UPKStreams[patch.File].UnStream.Position = patch.Offset;
+                    UPKStreams[patch.File].UnStream.Write(patch.Bytes);
+                    UPKStreams[patch.File].Modified = true;  // If false, file will not be saved on final
                 }
                 Console.WriteLine("[SUCCESS]");
             }
@@ -548,7 +548,7 @@ namespace IBPatcher
             {
                 string contents = $"-exec=\"{"Commands.txt"}\"";
                 if (ShouldOutputIPA) ipa.Archive.UpdateEntry($"{ipa.AppFolder}/CookedIPhone/UE3CommandLine.txt", contents);
-                else using (var fs = File.Create($"{PathFilesOut}\\CookedIPhone\\UE3CommandLine.txt")) fs.Write(UnrealConverter.GetBytes(contents));
+                else using (var fs = File.Create($"{PathFilesOut}\\CookedIPhone\\UE3CommandLine.txt")) fs.Write(Encoding.ASCII.GetBytes(contents));
             }
         }
 
@@ -573,60 +573,49 @@ namespace IBPatcher
                             foreach (JsonPatch patch in uobj.Patches)
                             {
                                 if (patch.Enabled == false) continue;
-                                UPKStreams[file.FileName].uw.BaseStream.Position = uobj.UObjectOffsetInPackage + patch.Offset;
-                                UPKStreams[file.FileName].uw.Write(patch.Bytes);
-                                UPKStreams[file.FileName].HasBeenModified = true;   // If false, file will not be saved on final
+                                UPKStreams[file.FileName].UnStream.Position = uobj.UObjectOffsetInPackage + patch.Offset;
+                                UPKStreams[file.FileName].UnStream.Write(patch.Bytes);
+                                UPKStreams[file.FileName].Modified = true;   // If false, file will not be saved on final
                             }
                         }
                     }
                     else  // COALESCED
                     {
-                        foreach (JsonIni ini in file.Inis)
+                        foreach (JsonIni iniMod in file.Inis)
                         {
-                            // Delete ini if it exists
-                            if (ini.Mode == JsonMode.Delete)
+                            if (iniMod.Enabled == false) continue;
+
+                            if (iniMod.Mode == JsonMode.Delete)
                             {
-                                CoalStreams[file.FileName].Inis.Remove(ini.IniName);
+                                CoalStreams[file.FileName].TryRemoveIni(iniMod.IniPath);
                                 continue;
                             }
 
-                            // Add ini if doesn't exist, or empty if if mode is replace
-                            if (!CoalStreams[file.FileName].Inis.ContainsKey(ini.IniName) || ini.Mode == JsonMode.Overwrite)
-                            {
-                                CoalStreams[file.FileName].Inis[ini.IniName] = new() { 
-                                    Path = new FString(ini.IniName, UEncoding.Unicode),
-                                    Sections = new()
-                                };
-                            }
+                            // Add ini if doesn't exist. If mode is replace, clear its sections
+                            Ini currentIni = CoalStreams[file.FileName].GetIni(iniMod.IniPath);
+                            if (iniMod.Mode == JsonMode.Overwrite) currentIni.Sections = new();
 
-                            Ini curIni = CoalStreams[file.FileName].Inis[ini.IniName];  // This is a REFERENCE, not a copy
-                            foreach (JsonSection section in ini.Sections)
+                            foreach (JsonSection sectionMod in iniMod.Sections)
                             {
-                                int sectionIdx = curIni.GetSectionIndex(section.SectionName);
+                                if (sectionMod.Enabled == false) continue;
 
-                                // Delete section if it exists
-                                if (section.Mode == JsonMode.Delete)
+                                if (sectionMod.Mode == JsonMode.Delete)
                                 {
-                                    if (sectionIdx != -1) curIni.Sections.RemoveAt(sectionIdx);
+                                    currentIni.TryRemoveSection(sectionMod.SectionName);
                                     continue;
                                 }
 
-                                // Add section if it doesn't, or empty it if mode is replace
-                                if (sectionIdx == -1)
-                                {
-                                    curIni.Sections.Add(new() { Name = new FString(section.SectionName, UEncoding.Unicode), Properties = new() });
-                                    sectionIdx = curIni.Sections.Count - 1;
-                                }
-                                else if (section.Mode == JsonMode.Overwrite) curIni.Sections[sectionIdx] = new();
+                                Section currentSection = currentIni.GetSection(sectionMod.SectionName);
+                                if (sectionMod.Mode == JsonMode.Overwrite) currentSection.Properties = new();
 
-                                foreach (string property in section.Properties)
+                                foreach (string property in sectionMod.Properties)
                                 {
                                     string[] sub = property.Split('=', 2);
 
-                                    curIni.Sections[sectionIdx].Properties.Add(new Property()
+                                    currentSection.Properties.Add(new Property()
                                     {
-                                        Key = new FString(sub[0], UEncoding.Unicode),
-                                        Value = new FString(sub.Length == 2 ? sub[1] : string.Empty, UEncoding.Unicode)
+                                        Key = sub[0],
+                                        Value = sub.Length == 2 ? sub[1] : string.Empty
                                     });
                                 }
                             }
@@ -666,9 +655,9 @@ namespace IBPatcher
                     return;
                 }
 
-                Directory.CreateDirectory(PathFilesOut);
-                if (CopyMods.Count > 0) Directory.CreateDirectory(PathFilesOut + "\\Binaries");
-                if (IniMods.Count + JsonMods.Count > 0) Directory.CreateDirectory(PathFilesOut + "\\CookedIPhone");
+                // Directory.CreateDirectory(PathFilesOut);
+                Directory.CreateDirectory(PathFilesOut + "\\CookedIPhone");
+                if (CopyMods.Contains("Commands.txt")) Directory.CreateDirectory(PathFilesOut + "\\Binaries");
             }
 
             ExtractRequiredFiles(ipa);
@@ -684,34 +673,39 @@ namespace IBPatcher
             // Update coalesced streams. Command mods were written during WriteRepMods()
             foreach (KeyValuePair<string, Coalesced> entry in CoalStreams)
             {
+                entry.Value.Serialize();
+
                 if (ShouldOutputIPA)
                 {
-                    ipa.Archive.UpdateEntry($"{ipa.AppFolder}CookedIPhone/{entry.Key}", entry.Value.MemoryToCoalesced());
+                    ipa.Archive.UpdateEntry($"{ipa.AppFolder}CookedIPhone/{entry.Key}", entry.Value.UnStream.ToArray());
                 }
                 else
                 {
-                    using (var fs = File.Create($"{PathFilesOut}/CookedIPhone/{entry.Key}")) fs.Write(entry.Value.MemoryToCoalesced());
+                    using var fs = File.Create($"{PathFilesOut}/CookedIPhone/{entry.Key}");
+                    fs.Write(entry.Value.UnStream.ToArray());
                 }
             }
 
             // Update UPK streams
+            // @TODO foreach VALUES. Keys is not needed
             foreach (KeyValuePair<string, UPK> entry in UPKStreams)
             {
-                if (!entry.Value.HasBeenModified)
+                if (!entry.Value.Modified)
                 {
-                    entry.Value.Dispose();
+                    entry.Value.UnStream.Dispose();
                     UPKStreams.Remove(entry.Key);
                     continue;
                 }
 
-                entry.Value.uw.BaseStream.Position = 0;
+                entry.Value.UnStream.Position = 0;
                 if (ShouldOutputIPA)
                 {
-                    ipa.Archive.UpdateEntry($"{ipa.AppFolder}CookedIPhone/{entry.Key}", entry.Value.uw.BaseStream);
+                    ipa.Archive.UpdateEntry($"{ipa.AppFolder}CookedIPhone/{entry.Key}", entry.Value.UnStream.ToArray());
                 }
                 else
                 {
-                    using (var fs = File.Create($"{PathFilesOut}/CookedIPhone/{entry.Key}")) entry.Value.uw.BaseStream.CopyTo(fs);
+                    using var fs = File.Create($"{PathFilesOut}/CookedIPhone/{entry.Key}");
+                    fs.Write(entry.Value.UnStream.ToArray());
                 }
             }
 

@@ -28,7 +28,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\UnrealLib\UnrealLib.csproj" />
+	  <ProjectReference Include="..\..\UnrealLib\src\UnrealLib.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
