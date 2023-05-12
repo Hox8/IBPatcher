@@ -1,7 +1,3 @@
-# Mod format documentation
-
-This document provides everything you need to know to 
-
 # INI format
 The .INI format was designed by Niko_KV and released on the 8th of October, 2022. It is a flat structure where multiple patches belong to a single mod file. Metadata exists as comments at the start of a file describing the Mod's name, game, author, and date. It has been superseded by the .JSON format, but remains available for backwards compability and convenience for modders.
 
