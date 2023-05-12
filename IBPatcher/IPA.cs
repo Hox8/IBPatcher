@@ -43,7 +43,7 @@ namespace IBPatcher
 
         public ZipFile Archive { get; private set; }
         public ZipError Error { get; private set; }
-        public Shared.GameType Game { get; private set; }
+        public Game Game { get; private set; }
         public string AppFolder { get; private set; }
         public string Filepath { get; private set; }
         public string Filename { get; private set; }
@@ -66,7 +66,7 @@ namespace IBPatcher
             if (Archive.ContainsEntry("Payload/VoteGame.app/"))
             {
                 AppFolder = "Payload/VoteGame.app/";
-                Game = Shared.GameType.VOTE;
+                Game = Game.VOTE;
             }
             else if (Archive.ContainsEntry("Payload/SwordGame.app/CookedIPhone/Entry.xxx"))
             {
@@ -77,9 +77,9 @@ namespace IBPatcher
                     br.BaseStream.Position = 4;
                     Game = br.ReadInt16() switch
                     {
-                        > 864 => Shared.GameType.IB3,
-                        > 788 => Shared.GameType.IB2,
-                        _ => Shared.GameType.IB1,
+                        > 864 => Game.IB3,
+                        > 788 => Game.IB2,
+                        _ => Game.IB1,
                     };
                 }
             }
@@ -106,10 +106,10 @@ namespace IBPatcher
         {
             return Game switch
             {
-                Shared.GameType.IB3 => "Infinity Blade III",
-                Shared.GameType.IB2 => "Infinity Blade II",
-                Shared.GameType.IB1 => "Infinity Blade I",
-                Shared.GameType.VOTE => "VOTE!!!",
+                Game.IB3 => "Infinity Blade III",
+                Game.IB2 => "Infinity Blade II",
+                Game.IB1 => "Infinity Blade I",
+                Game.VOTE => "VOTE!!!",
                 _ => "Unknown Game"
             };
         }
