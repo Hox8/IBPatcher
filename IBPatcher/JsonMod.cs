@@ -20,6 +20,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using IBPatcher;
 using UnrealLib;
+using UnrealLib.Core;
 
 namespace JsonTest2
 {
@@ -81,12 +82,11 @@ namespace JsonTest2
     public class JsonObject
     {
         // REQUIRED
-        public string ObjectName;               // Name of the object to look for inside a UPK file
-        public List<JsonPatch> Patches;   // List of patches to apply to the specified Object
+        public string ObjectName;           // Name of the object to look for inside a UPK file
+        public List<JsonPatch> Patches;     // List of patches to apply to the specified Object
 
         // INTERNAL
-        internal int UObjectOffsetInPackage;
-        internal int UObjectSerialSize;         // Used to check if a mod bleeds into other objects
+        internal FObjectExport export;
     }
 
     public class JsonFile

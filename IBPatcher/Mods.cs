@@ -229,51 +229,39 @@ namespace IBPatcher
                 if (!char.IsWhiteSpace(c)) sb.Append(c);
             }
 
-            if (contents.Contains('{')) // Convert any name references ('{}') using regex matching
+            // NAME references ('{}')
+            if (contents.Contains('{'))
             {
                 foreach (Match match in RegexNameReference.Matches(sb.ToString()))
                 {
-                    string[] sub = match.Groups[1].Value.Split(',', 2);
-                    int instance = 0;
-
-                    if (sub.Length == 2)    // If an instance was provided, try and parse it
-                    {
-                        try
-                        {
-                            instance = int.Parse(sub[1]) + 1;
-                        }
-                        catch
-                        {
-                            bytes = default;
-                            return ModError.BadFNameInstance;
-                        }
-                    }
-
-                    int nameIndex = UPK.GetNameIndex(sub[0]);
-                    if (nameIndex == -1)
+                    FName? name = UPK.FindName(match.Groups[1].Value);
+                    if (name is null)
                     {
                         bytes = default;
                         return ModError.BadFName;
                     }
 
-                    string _name = BinaryPrimitives.ReverseEndianness(nameIndex).ToString("X8");
-                    string _instance = BinaryPrimitives.ReverseEndianness(instance).ToString("X8");
+                    // @TOOD bad. Use FName serializer
+                    string _name = BinaryPrimitives.ReverseEndianness(name.NameIndex).ToString("X8");
+                    string _instance = BinaryPrimitives.ReverseEndianness(name.NameInstance + 1).ToString("X8");  // +1 to match UC
                     sb.Replace(match.Value, $"{_name}{_instance}");
                 }
             }
 
-            if (contents.Contains('['))  // Object references ('[]')
+            // OBJECT references ('[]')
+            // @TODO need to support import objects?
+            if (contents.Contains('['))
             {
                 foreach (Match match in RegexObjectReference.Matches(sb.ToString()))
                 {
-                    int objectIndex = UPK.GetObjectIndex(match.Groups[1].Value);
-                    if (objectIndex == 0)
+                    FObjectExport? export = UPK.FindExport(match.Groups[1].Value);
+                    if (export is null)
                     {
                         bytes = default;
                         return ModError.BadUObject;
                     }
 
-                    sb.Replace(match.Value, $"{BinaryPrimitives.ReverseEndianness(objectIndex):X}");
+                    sb.Replace(match.Value, $"{BinaryPrimitives.ReverseEndianness(export.Index + 1):X}");  
                 }
             }
 
@@ -468,23 +456,23 @@ namespace IBPatcher
                     {
                         foreach (JsonObject uobj in file.Objects)
                         {
-                            int UObjectIndex = UPKStreams[file.FileName].GetObjectIndex(uobj.ObjectName);
+                            uobj.export = UPKStreams[file.FileName].FindExport(uobj.ObjectName);
 
-                            if (UObjectIndex < 1)
+                            if (uobj.export is null)
                             {
-                                json.Error = new JsonError() { Error = UObjectIndex == 0 ? ModError.BadUObject : ModError.ObjectNotExport };
+                                json.Error = new JsonError() { Error = ModError.BadUObject };
                                 goto processModsStart;
                             }
-
-                            FObjectExport exportEntry = UPKStreams[file.FileName].Exports[UObjectIndex - 1];
-                            uobj.UObjectOffsetInPackage = exportEntry.SerialOffset;
-                            uobj.UObjectSerialSize = exportEntry.SerialSize;
 
                             foreach (JsonPatch patch in uobj.Patches)
                             {
                                 ModError error = ParsePatch(patch.Value, UPKStreams[file.FileName], patch.Type, patch.Size, out patch.Bytes);
 
-                                if (error == ModError.None && patch.Offset + patch.Bytes.Length > uobj.UObjectSerialSize) error = ModError.UObjectOverflow;
+                                if (error == ModError.None && patch.Offset + patch.Bytes.Length > uobj.export.SerialSize)
+                                {
+                                    error = ModError.UObjectOverflow;
+                                }
+
                                 if (error != ModError.None)
                                 {
                                     json.Error = new() { Error = error };
@@ -573,7 +561,7 @@ namespace IBPatcher
                             foreach (JsonPatch patch in uobj.Patches)
                             {
                                 if (patch.Enabled == false) continue;
-                                UPKStreams[file.FileName].UnStream.Position = uobj.UObjectOffsetInPackage + patch.Offset;
+                                UPKStreams[file.FileName].UnStream.Position = uobj.export.SerialOffset + patch.Offset;
                                 UPKStreams[file.FileName].UnStream.Write(patch.Bytes);
                                 UPKStreams[file.FileName].Modified = true;   // If false, file will not be saved on final
                             }

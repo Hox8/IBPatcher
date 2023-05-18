@@ -37,11 +37,11 @@ namespace IBPatcher
             Console.ForegroundColor = original;
         }
 
-        // Displays a basic appplication info when no arguments are passed
+        // Displays basic application info when no arguments are passed
         private static void InfoString(int MaxTextLength)
         {
             Console.WriteLine($"{new string('=', MaxTextLength + 10)}");
-            PrintColored("IBPatcher v1.2.1", ConsoleColor.Green, doNewline: false);
+            PrintColored("IBPatcher v1.2.2", ConsoleColor.Green, doNewline: false);
             Console.WriteLine("\nCopyright © 2023 Hox, GPL v3.0");
             Console.WriteLine(new string('=', MaxTextLength + 10));
         }

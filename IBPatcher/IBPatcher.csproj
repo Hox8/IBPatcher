@@ -5,10 +5,21 @@
 		<TargetFramework>net8.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
-		<PublishAot>true</PublishAot>
-		<ProduceReferenceAssembly>False</ProduceReferenceAssembly>
 		<ApplicationIcon>Resources\Hammer256_Indexed.ico</ApplicationIcon>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
+
+		<PublishAot>true</PublishAot>
+		<InvariantGlobalization>true</InvariantGlobalization>
+		<OptimizationPreference>Size</OptimizationPreference>
+		<AutoreleasePoolSupport>false</AutoreleasePoolSupport>
+		<EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
+		<EnableUnsafeUTF7Encoding>false</EnableUnsafeUTF7Encoding>
+		<EventSourceSupport>false</EventSourceSupport>
+		<HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
+		<MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+		<UseNativeHttpHandler>true</UseNativeHttpHandler>
+		<UseSystemResourceKeys>true</UseSystemResourceKeys>
+
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -24,17 +35,13 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <PackageReference Include="System.Text.Json" Version="8.0.0-preview.3.23174.8" />
+		<ProjectReference Include="..\UnrealLib\src\UnrealLib.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
-	  <ProjectReference Include="..\..\UnrealLib\src\UnrealLib.csproj" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<Reference Include="Zip Reduced">
-			<HintPath>Zip Reduced.dll</HintPath>
-		</Reference>
+	  <Reference Include="Zip Reduced">
+	    <HintPath>Zip Reduced.dll</HintPath>
+	  </Reference>
 	</ItemGroup>
 
 </Project>

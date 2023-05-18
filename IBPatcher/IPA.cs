@@ -57,7 +57,9 @@ namespace IBPatcher
 
             Archive = ZipFile.Read(filePath);
 
-            if (!Archive.ContainsEntry("Payload/"))
+            // Test for the presence of the "Payload" folder
+            // We cannot check if "Payload/" exists as directory entries are not guaranteed
+            if (!Archive.EntryFileNames.Any(file => file.StartsWith("Payload/")))
             {
                 Error = ZipError.NonAppleArchive;
                 return;

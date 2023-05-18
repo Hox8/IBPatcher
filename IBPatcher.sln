@@ -5,7 +5,7 @@ VisualStudioVersion = 17.5.33516.290
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IBPatcher", "IBPatcher\IBPatcher.csproj", "{2DEE743B-2A76-41FD-8785-24FE24F329D4}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnrealLib", "..\UnrealLib\src\UnrealLib.csproj", "{4B9D6339-C5C9-4957-A2CE-1B22550D0103}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnrealLib", "UnrealLib\src\UnrealLib.csproj", "{4B9D6339-C5C9-4957-A2CE-1B22550D0103}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
