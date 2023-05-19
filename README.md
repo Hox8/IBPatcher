@@ -4,18 +4,15 @@
 
 # IBPatcher
 ## What is it?
-IBPatcher is a versatile modding tool designed for the iOS Infinity Blade series which streamlines the process of collating and applying a large range of user modifications through a small number of clicks.
+IBPatcher is a modding utility designed for the iOS Infinity Blade series which aims to streamline the process of collating and applying collections of community-made mods.
 
 <p align="center">
   <img src="https://user-images.githubusercontent.com/125164507/236659991-b90a322b-eeff-4a46-9915-5f62ca9cc2c8.png" width=1024>
 </p>
 
 ## Installation
-The latest version of IBPatcher can be downloaded from the following sources:
-- Google Drive: https://drive.google.com/drive/folders/1N_OAJ9fmM-T2dVQc_nUSikLNlyYzc59V </li>
-- GitHub: https://github.com/Hox8/IBPatcher/releases
-
-<br>No installation is required—simply download the version for your platform and extract the executable to your PC.
+The latest version of IBPatcher is always available to download from the releases tab: https://github.com/Hox8/IBPatcher/releases
+<br>No installation is required. Simply download the version for your platform and extract the executable to your PC.
 
 ## Features
 - Supports Infinity Blade I, Infinity Blade II, Infinity Blade III, and VOTE!!!
