@@ -102,27 +102,27 @@ Enabled*      | Boolean    | If set to false, the section will be ignored. Defau
 <br>
 
 # Name and Object references
-Starting with v1.2, name and object references can be used inside of byte type patches. Name and object references allow modders to specify an objects or names by name over its compiled bytecode. This makes modding easier since we can use references without finding its internal indicies, and it also allows for cross-compatibility across different versions, as every version stores its names and objects in different positions.
+Starting with v1.2, name and object references can be used inside of byte type patches. Name and object references allow modders to specify objects and names by reference rather than hardcoded bytes. This makes modding easier since we can use references directly without needing to find their internal indicies, and it also allows for cross-compatibility across different versions, as every version stores its names and objects in different positions.
 
 ## Object references
 An object reference is a string contained within square brackets, e.g. '[PlayerPawn]'. The patcher will attempt to find the object (in this case "PlayerPawn") and convert it into the equivalent bytecode for the current package.
 
 ## Name references
-A name reference is a string contained within curly braces, e.g. '{Sword}'. Name references can also have name _instances_ which we can take advantage of. For example, if we wanted to reference 'Sword_26' (the Infinity Blade), we can do this by specifying its name, followed by a comma and the instance number. For example, '{Sword,26}'.
+Name references in JSON mods are very similar to how names appear within UnrealScript. A name reference is a string name as it appears within the UnrealScript, contained within curly braces, i.e. '{Sword}'. Name references can also utilize name _instances_, and they look exactly how they appear within UnrealScript, i.e. '{Sword_26}'.
 
 ### Examples of object and name reference usage inside 'BYTE' values:
 - "value": "1B {LoadStartNewBloodline} 26 16 01 [UnlockedNewGamePlus] 01 [UnlockedNewGamePlus] 0B 0B 0B"<br>
 - "value": "{FlashItemWon}"<br>
-- "value": "{Sword,139}"<br>
+- "value": "{Sword_139}"<br>
 
 <br>
 
 # Bin mods
-Bin mods are simple file replacements. If the patcher finds a file with a '.bin' extension, it will add it to the target IPA or output folder. .Bin mods are used to copy *pre-patched* coalesced.bin files into the target destination, but with the addition of .JSON mods in v1.2, the need for bin mods has greatly diminished. They are kept only for backwards compatibility and modders' convenience.
+Bin mods are simply file replacements. If the patcher finds a file with a '.bin' extension, it will add it to the target IPA or output folder. .Bin mods are used to copy *pre-patched* coalesced.bin files into the target destination, but with the addition of .JSON mods in v1.2, the need for bin mods has greatly diminished. They are kept only for backwards compatibility and modders' convenience.
 
 <br>
 
 # Command mods
-A command "mod" is also a simple file replacement. Unreal Engine 3 games can take advantage of a file which runs console commands at startup which can be used to control various settings like the fps cap, the state of certain graphics features, configurable options and so on. The patcher is designed to look out for a file named 'Commands.txt' in the mods folder, and if it is found, it will be copied to the target IPA or output folder.<br>
+A command "mod" is also a file replacement. Unreal Engine 3 games can take advantage of a file which runs console commands at startup which can be used to control various settings, like the framerate cap, graphics settings, configurable script options and more. The patcher is designed to look for a file named 'Commands.txt' in the mods folder, and if it is found, it will be copied to the target IPA or output folder.<br>
 
-'Commands.txt' needs one other file in order to function, 'UE3CommandLine.txt'. This file instructs the game to execute the contents of 'Commands.txt' into the console at startup. If this file is not present in the mods folder, it will be generated automatically by the patcher.
+'Commands.txt' needs one other file in order to function, 'UE3CommandLine.txt'. This file instructs the game to execute the contents of 'Commands.txt' into the console at startup. This file is generated automatically by the patcher unless it is supplied by the user.
