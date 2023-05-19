@@ -243,7 +243,7 @@ namespace IBPatcher
 
                     // @TOOD bad. Use FName serializer
                     string _name = BinaryPrimitives.ReverseEndianness(name.NameIndex).ToString("X8");
-                    string _instance = BinaryPrimitives.ReverseEndianness(name.NameInstance + 1).ToString("X8");  // +1 to match UC
+                    string _instance = BinaryPrimitives.ReverseEndianness(name.NameInstance).ToString("X8");  // +1 to match UC
                     sb.Replace(match.Value, $"{_name}{_instance}");
                 }
             }
