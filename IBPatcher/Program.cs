@@ -41,7 +41,7 @@ namespace IBPatcher
         private static void InfoString(int MaxTextLength)
         {
             Console.WriteLine($"{new string('=', MaxTextLength + 10)}");
-            PrintColored("IBPatcher v1.2.2", ConsoleColor.Green, doNewline: false);
+            PrintColored("IBPatcher v1.2.3", ConsoleColor.Green, doNewline: false);
             Console.WriteLine("\nCopyright © 2023 Hox, GPL v3.0");
             Console.WriteLine(new string('=', MaxTextLength + 10));
         }
@@ -52,7 +52,9 @@ namespace IBPatcher
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);  // @TODO Inefficient because it adds ALL codepages instead of just IBM437
             int MaxTextLength = 50;
 
-            // args = new string[] { @"C:\Users\Administrator\Documents\IBPatcher\Infinity Blade II v1.3.5.ipa" };
+#if DEBUG
+            args = new string[] { @"C:\Users\User 1\Downloads\Infinity Blade III v1.4.4.ipa" };
+#endif
             if (args.Length == 0)
             {
                 InfoString(MaxTextLength);

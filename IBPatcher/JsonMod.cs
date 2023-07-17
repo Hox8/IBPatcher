@@ -41,7 +41,7 @@ namespace JsonTest2
         // No exclusive create option. How would that be useful?
         Delete = 0,     // If file exists, delete it
         Overwrite,      // Delete + Update combined
-        Append          // DEFAULT. Adds to an existing ini file. If doesn't exist, create new one     
+        Append          // DEFAULT. Adds to an existing ini file. If doesn't exist, create new one
     }
 
     public class JsonSection
@@ -367,6 +367,7 @@ namespace JsonTest2
             JsonElement? patchValue = null;
             int? size = null;
             bool enabled = true;
+            JsonMode mode = JsonMode.Overwrite;
 
             while (reader.Read())
             {
@@ -389,6 +390,7 @@ namespace JsonTest2
                                 "INT32" or "INT" or "INTEGER" => PatchType.Int32,
                                 "FLOAT" => PatchType.Float,
                                 "STRING" => PatchType.String,
+                                "REPLACEMENT" => PatchType.Replacement,
                                 _ => throw new JsonModException($"'{value}' is not a valid {location} data type")
                             };
                             break;
@@ -412,7 +414,13 @@ namespace JsonTest2
             }
 
             if (type is null) throw new JsonModException($"Required {location} property 'type' was never passed");
-            if (offset is null) throw new JsonModException($"Required {location} property 'offset' was never passed");
+
+            if (offset is null)
+            {
+                if (type == PatchType.Replacement) offset = 0;
+                else throw new JsonModException($"Required {location} property 'offset' was never passed");
+            }
+
             if (patchValue is null) throw new JsonModException($"Required {location} property 'value' was never passed");
             if (size is not null && type != PatchType.String) throw new JsonModException($"{location} property 'size' is only applicable for 'String' types");
 

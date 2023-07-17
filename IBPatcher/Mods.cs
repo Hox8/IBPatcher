@@ -34,7 +34,8 @@ namespace IBPatcher
         UInt8,
         Int32,
         Float,
-        String
+        String,
+        Replacement     // For changing byte count within the package; completely replaces the UObject with a new one.
     }
 
     // @TODO this has been really neglected, almost entirely unused by Json mods
@@ -97,6 +98,7 @@ namespace IBPatcher
         public int TotalScannedMods = 0;    // Amount of mods scanned in, regardless of any errors incurred
         public int CurrentModIndex = 0;    // Amount of mods which have passed stage 2 processing?. Incremented through PrintModString()
         public int SkippedMods = 0;
+        public bool BytesChanged = false;
 
         public Mods(IPA ipa, int MaxTextLen)
         {
@@ -408,6 +410,7 @@ namespace IBPatcher
             switch (type)
             {
                 case PatchType.Byte:
+                case PatchType.Replacement:
                     return ParseBytes(contents, UPK, out bytes);
                 case PatchType.Boolean:
                     return ParseBool(contents, out bytes);
@@ -468,7 +471,7 @@ namespace IBPatcher
                             {
                                 ModError error = ParsePatch(patch.Value, UPKStreams[file.FileName], patch.Type, patch.Size, out patch.Bytes);
 
-                                if (error == ModError.None && patch.Offset + patch.Bytes.Length > uobj.export.SerialSize)
+                                if (error == ModError.None && patch.Type != PatchType.Replacement && patch.Offset + patch.Bytes.Length > uobj.export.SerialSize)
                                 {
                                     error = ModError.UObjectOverflow;
                                 }
@@ -556,13 +559,25 @@ namespace IBPatcher
                 {
                     if (file.FileType == JsonType.UPK)  // UPK
                     {
+                        var UPK = UPKStreams[file.FileName];
+
                         foreach (JsonObject uobj in file.Objects)
                         {
                             foreach (JsonPatch patch in uobj.Patches)
                             {
                                 if (patch.Enabled == false) continue;
-                                UPKStreams[file.FileName].UnStream.Position = uobj.export.SerialOffset + patch.Offset;
-                                UPKStreams[file.FileName].UnStream.Write(patch.Bytes);
+
+                                if (patch.Type == PatchType.Replacement)
+                                {
+                                    UPK.ReplaceExportData(uobj.export, ref patch.Bytes);
+                                    BytesChanged = true;
+                                }
+                                else
+                                {
+                                    UPK.UnStream.Position = uobj.export.SerialOffset + patch.Offset;
+                                    UPK.UnStream.Write(patch.Bytes);
+                                }
+
                                 UPKStreams[file.FileName].Modified = true;   // If false, file will not be saved on final
                             }
                         }
@@ -701,13 +716,51 @@ namespace IBPatcher
             string status = $"Saving {modifiedFilesCount} file{(modifiedFilesCount != 1 ? 's' : "")} ({CurrentModIndex - SkippedMods}/{TotalScannedMods} mods) to {(ShouldOutputIPA ? "IPA" : "output folder")}";
             Console.Write($"\n{status} {new string('.', MaxCharLength - status.Length - 1)} [ 00.0% ]");
 
+            if (ShouldOutputIPA && BytesChanged)
+            {
+                // @TODO: ideally rewrite the toc rather than deleting it
+                if (ipa.Game is not Game.IB1)
+                {
+                    string[] iPhoneTOCList = new string[]
+                    {
+                        $"{ipa.AppFolder}IPhoneTOC.txt",
+                        $"{ipa.AppFolder}IPhoneTOC_BRA.txt",
+                        $"{ipa.AppFolder}IPhoneTOC_CHN.txt",
+                        $"{ipa.AppFolder}IPhoneTOC_DEU.txt",
+                        $"{ipa.AppFolder}IPhoneTOC_DUT.txt",
+                        $"{ipa.AppFolder}IPhoneTOC_ESN.txt",
+                        $"{ipa.AppFolder}IPhoneTOC_ESM.txt",
+                        $"{ipa.AppFolder}IPhoneTOC_FRA.txt",
+                        $"{ipa.AppFolder}IPhoneTOC_IND.txt",
+                        $"{ipa.AppFolder}IPhoneTOC_ITA.txt",
+                        $"{ipa.AppFolder}IPhoneTOC_JPN.txt",
+                        $"{ipa.AppFolder}IPhoneTOC_KOR.txt",
+                        $"{ipa.AppFolder}IPhoneTOC_POR.txt",
+                        $"{ipa.AppFolder}IPhoneTOC_RUS.txt",
+                        $"{ipa.AppFolder}IPhoneTOC_SWE.txt",
+                        $"{ipa.AppFolder}IPhoneTOC_THA.txt"
+                    };
+                    ipa.Archive.RemoveEntries(iPhoneTOCList);
+                }
+                else
+                {
+                    Program.PrintColored("\nWARNING: IB1 IPhoneTOC.txt cannot be updated automatically! You must update it manually (for now).", ConsoleColor.Yellow);
+                }
+            }
+
             if (ShouldOutputIPA && CurrentModIndex != SkippedMods)
             {
                 ipa.Archive.SaveProgress += IPA.SaveProgress;
                 ipa.Archive.Save(PathIPAOut);
             }
+
             ipa.Archive.Dispose();
             Console.WriteLine(new string('\b', 9) + (modifiedFilesCount == 0 ? "[SKIPPED]" : "[SUCCESS]"));
+
+            if (!ShouldOutputIPA && BytesChanged)
+            {
+                Program.PrintColored("\nWARNING: File output mode cannot update IPhoneTOC.txt, so you must do this manually!", ConsoleColor.Yellow);
+            }
 
             if (SkippedMods > 0)
             {
