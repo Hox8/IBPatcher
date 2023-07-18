@@ -740,7 +740,17 @@ namespace IBPatcher
                         $"{ipa.AppFolder}IPhoneTOC_SWE.txt",
                         $"{ipa.AppFolder}IPhoneTOC_THA.txt"
                     };
-                    ipa.Archive.RemoveEntries(iPhoneTOCList);
+                    foreach (string entry in iPhoneTOCList)
+                    {
+                        try
+                        {
+                            ipa.Archive.RemoveEntry(entry);
+                        }
+                        catch (ArgumentException)
+                        {
+                            // File wasn't found in the archive. Ignore and move
+                        }
+                    }
                 }
                 else
                 {
