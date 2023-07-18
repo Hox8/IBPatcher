@@ -528,7 +528,7 @@ namespace IBPatcher
                     else
                     {
                         // The rest should only be command mods
-                        if (ShouldOutputIPA) ipa.Archive.UpdateEntry($"{ipa.AppFolder}/Binaries/{file}", ms);
+                        if (ShouldOutputIPA) ipa.Archive.UpdateEntry($"{ipa.AppFolder}Binaries/{file}", ms);
                         else using (var fs2 = File.Create($"{PathFilesOut}\\{(file == "Commands.txt" ? "Binaries" : "CookedIPhone")}\\{file}")) ms.WriteTo(fs2);
                     }
                 }
@@ -538,7 +538,7 @@ namespace IBPatcher
             if (CopyMods.Contains("Commands.txt") && !CopyMods.Contains("UE3CommandLine.txt"))
             {
                 string contents = $"-exec=\"{"Commands.txt"}\"";
-                if (ShouldOutputIPA) ipa.Archive.UpdateEntry($"{ipa.AppFolder}/CookedIPhone/UE3CommandLine.txt", contents);
+                if (ShouldOutputIPA) ipa.Archive.UpdateEntry($"{ipa.AppFolder}CookedIPhone/UE3CommandLine.txt", contents);
                 else using (var fs = File.Create($"{PathFilesOut}\\CookedIPhone\\UE3CommandLine.txt")) fs.Write(Encoding.ASCII.GetBytes(contents));
             }
         }
