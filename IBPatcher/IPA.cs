@@ -1,126 +1,149 @@
-﻿/*
- * IBPatcher
- * Copyright © 2023 Hox
- * 
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
-
+using System;
+using System.IO;
 using Ionic.Zip;
-using UnrealLib;
+using Ionic.Zlib;
+using UnLib;
+using UnLib.Enums;
 
-namespace IBPatcher
+namespace IBPatcher;
+
+public class IPA : IDisposable
 {
-    public class IPA
+    private readonly ZipFile _archive;
+    public string ErrorContext;
+
+    public Game Game;
+    public readonly string FileName;
+    public string ModdedName;
+    public readonly string ParentPath;
+
+    public IPA(string filePath)
     {
-        public static void SaveProgress(object sender, SaveProgressEventArgs e)
+        FileName = Path.GetFileName(filePath);
+        ParentPath = filePath[..^FileName.Length];
+        ModdedName = $"{Path.ChangeExtension(FileName, null)} - Modded.ipa";
+
+        if (!File.Exists(filePath))
         {
-            if (e.EventType == ZipProgressEventType.Saving_BeforeWriteEntry)
-            {
-                string percentage = ((float)e.EntriesSaved / e.EntriesTotal * 100).ToString("00.0");
-                Console.Write(new string('\b', 7) + percentage + "% ]");
-            }
+            ErrorContext = $"\n'{filePath}' is not a valid path.\nDouble-check the file exists, or try drag-and-dropping instead.\n";
+            return;
         }
 
-        public enum ZipError : byte
+        try
         {
-            None = 0,
-            FileNotFound,
-            InvalidArchive,
-            NonAppleArchive,
-            UnknownGame,
+            _archive = new ZipFile(filePath);
+            _archive.CompressionLevel = CompressionLevel.Level3; // Faster zipping at the expense of a small size increase.
+            _archive.SaveProgress += SaveProgress;  // Subscribe the 'SaveProgress' event.
+        }
+        catch (ZipException)
+        {
+            ErrorContext = $"\n{FileName} is not a valid zip archive.\nTry downloading a fresh IPA and try again.\n";
+            return;
         }
 
-        public ZipFile Archive { get; private set; }
-        public ZipError Error { get; private set; }
-        public Game Game { get; private set; }
-        public string AppFolder { get; private set; }
-        public string Filepath { get; private set; }
-        public string Filename { get; private set; }
-
-        public IPA(string filePath)
+        var entry = _archive["Payload/SwordGame.app/CookedIPhone/Entry.xxx"];
+        if (entry is null) // Not SwordGame
         {
-            Filepath = filePath;
-            Filename = Path.GetFileName(filePath);
+            if (_archive["Payload/VoteGame.app/CookedIPhone/Entry.xxx"] is not null)
+                Game = Game.Vote;
+            else ErrorContext = $"\n{FileName} is not a valid Infinity Blade archive!\n";
 
-            if ((Error = ValidateArchive(filePath)) != ZipError.None) return;
-
-            Archive = ZipFile.Read(filePath);
-
-            // Test for the presence of the "Payload" folder
-            // We cannot check if "Payload/" exists as directory entries are not guaranteed
-            if (!Archive.EntryFileNames.Any(file => file.StartsWith("Payload/")))
-            {
-                Error = ZipError.NonAppleArchive;
-                return;
-            }
-
-            if (Archive.ContainsEntry("Payload/VoteGame.app/"))
-            {
-                AppFolder = "Payload/VoteGame.app/";
-                Game = Game.VOTE;
-            }
-            else if (Archive.ContainsEntry("Payload/SwordGame.app/CookedIPhone/Entry.xxx"))
-            {
-                AppFolder = "Payload/SwordGame.app/";
-                using (var br = new BinaryReader(new MemoryStream()))
-                {
-                    Archive.SelectEntries("Entry.xxx", "Payload/SwordGame.app/CookedIPhone/").First().Extract(br.BaseStream);
-                    br.BaseStream.Position = 4;
-                    Game = br.ReadInt16() switch
-                    {
-                        > 864 => Game.IB3,
-                        > 788 => Game.IB2,
-                        _ => Game.IB1,
-                    };
-                }
-            }
-            else
-            {
-                Error = ZipError.UnknownGame;
-                return;
-            }
+            return;
         }
 
-        public string GetErrorString()
+        // Determine what Infinity Blade game we've got by extracting a small UPK file
+        using var ms = new MemoryStream();
+        entry.Extract(ms);
+        using var upk = new UnrealPackage(ms);
+        upk.Init();
+
+        Game = upk.Version switch
         {
-            return Error switch
-            {
-                ZipError.FileNotFound => $"'{Filepath}' is not a valid path.\nDouble-check the file exists, or try drag and dropping instead.",
-                ZipError.InvalidArchive => $"{Filename} is not a valid zip archive. Try using a fresh IPA and try again.",
-                ZipError.NonAppleArchive => $"{Filename} is not an Apple app archive!",
-                ZipError.UnknownGame => $"{Filename} is not a valid game. Make sure all of its files are intact.",
-                _ => ""
-            };
+            > 864 => Game.IB3,
+            > 788 => Game.IB2,
+            _ => Game.IB1
+        };
+    }
+
+    public bool HasError => !string.IsNullOrEmpty(ErrorContext);
+    public string CookedFolder => $"Payload/{(Game is Game.Vote ? "Vote" : "Sword")}Game.app/CookedIPhone/";
+
+    public void Dispose()
+    {
+        if (_archive is not null) _archive.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
+    /// Returns a boolean based on whether 'filePath' exists in the IPA.
+    public bool HasEntry(string filePath) => _archive[filePath] is not null;
+    
+    /// Extracts a file from the IPA to disk.
+    public void ExtractEntry(string filePath, string outputPath) => _archive[filePath].Extract(outputPath);
+    
+    /// Adds/Updates an entry in the IPA using a stream.
+    public void UpdateEntry(string filePath, Stream stream) => _archive.UpdateEntry(filePath, stream);
+
+    public bool SaveModdedIpa()
+    {
+        var outputPath = Path.Combine(ParentPath, ModdedName);
+        var tempPath = Path.Combine(Globals.TempPath, ModdedName);
+
+        try
+        {
+            File.Delete(outputPath);
+            _archive.Save(tempPath);
+            File.Move(tempPath, outputPath);
+        }
+        catch
+        {
+            return false;
         }
 
-        public string GetGameString()
-        {
-            return Game switch
-            {
-                Game.IB3 => "Infinity Blade III",
-                Game.IB2 => "Infinity Blade II",
-                Game.IB1 => "Infinity Blade I",
-                Game.VOTE => "VOTE!!!",
-                _ => "Unknown Game"
-            };
-        }
+        return true;
+    }
 
-        private static ZipError ValidateArchive(string filePath)
+    /// <summary>
+    /// Constructs a fully-qualified path from a filepath inside the IPA.<br /><br />Paths are relative from the
+    /// CookedIPhone folder.
+    /// </summary>
+    /// <param name="path">The filepath to construct a qualified path from.</param>
+    /// <returns></returns>
+    public string ZipPath(string path)
+    {
+        // Absolute path. Take off the '/' suffix.
+        if (path.StartsWith('/')) return path[1..];
+
+        // Normal path; lives in CookedIPhone folder.
+        if (!path.StartsWith("../")) return $"{CookedFolder}{path}";
+
+        // Relative path. Navigate up from CookedIPhone.
+        var sub = path.Split("../");
+        var basePath = IterateDirectory(CookedFolder, sub.Length - 1);
+
+        return $"{basePath}{sub[^1]}";
+    }
+
+    /// Travels up a directory by 'iterateAmount' and returns the final path.
+    private static string IterateDirectory(string basePath, int iterateAmount)
+    {
+        var dirCount = -1;
+
+        for (var i = basePath.Length - 1; i >= 0; i--)
+            if (basePath[i] == '/')
+                if (++dirCount == iterateAmount)
+                    return $"{basePath[..i]}/";
+
+        // Iteration went too far; return empty string instead of raising exception.
+        return string.Empty;
+    }
+
+    /// Event during zip save. Used for outputting progress to the console.
+    private static void SaveProgress(object? sender, SaveProgressEventArgs e)
+    {
+        if (e.EventType is ZipProgressEventType.Saving_BeforeWriteEntry)
         {
-            if (!File.Exists(filePath)) return ZipError.FileNotFound;
-            if (!ZipFile.IsZipFile(filePath)) return ZipError.InvalidArchive;
-            return ZipError.None;
+            var percentage = ((float)e.EntriesSaved / e.EntriesTotal * 100).ToString("00.0");
+            Console.Write(ModContext.Backspace + percentage + "% ]");
         }
     }
 }

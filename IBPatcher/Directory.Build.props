@@ -1,9 +1,0 @@
-<Project>
-  <PropertyGroup>
-	  <AssemblyTitle>IBPatcher</AssemblyTitle>
-	  <Product>IBPatcher</Product>
-	  <Version>1.2.3</Version>
-	  <Copyright>© 2023 Hox</Copyright>
-	  <Company>Hox</Company>
-  </PropertyGroup>
-</Project>
