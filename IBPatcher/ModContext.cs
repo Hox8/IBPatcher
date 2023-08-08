@@ -233,7 +233,7 @@ public class ModContext : IDisposable
         }
         else
         {
-            // DIRTY - close streams manually so temp dir can be moved.
+            // Close streams manually so temp dir can be moved.
             foreach (var stream in Streams.Values) stream.Dispose();
             foreach (var stream in TOCs.Values) stream.Dispose();
             
@@ -254,8 +254,7 @@ public class ModContext : IDisposable
             catch (IOException)
             {
                 // @ERROR: This should not happen. Uh-oh.
-                // @TODO: Friendly string please.
-                outputError = "DEBUG_COULD_NOT_MOVE_TEMP_DIR";
+                outputError = "Issues with internal folder!\nIf this persists after restarting your PC, please reach out for assistance.";
             }
         }
         
@@ -384,43 +383,41 @@ public class ModContext : IDisposable
     }
 
     /// <summary>
-    /// Updates all TOCs in the IPA with an empty stream (effectively clearing their contents).
+    /// Returns a list of TOC filepaths according to the passed Game. 
     /// </summary>
     private static List<string> GetTOCs(Game game)
     {
         string folder = $"Payload/{(game is Game.Vote ? "Vote" : "Sword")}Game.app/";
-        List<string> entries = new() {folder + "IPhoneTOC.txt"};
 
-        if (game is Game.IB3)
+        var tocs = GetLanguages(game)[1..];
+        for (int i = 0; i < tocs.Count; i++)
         {
-            entries.AddRange(new[]
-            {
-                folder + "IPhoneTOC_ESM.txt",
-                folder + "IPhoneTOC_IND.txt",
-                folder + "IPhoneTOC_THA.txt"
-            });
+            tocs[i] = $"{folder}IPhoneTOC_{tocs[i]}.txt";
         }
+        tocs.Add($"{folder}IPhoneTOC.txt");
 
-        if (game is Game.IB1 or Game.IB2 or Game.IB3)
+        return tocs;
+    }
+
+    public static List<string> GetLanguages(Game game)
+    {
+        // INT will always be the first element.
+        List<string> langs = new() { "INT" };
+
+        // VOTE only has INT.
+        if (game is not Game.Vote) langs.AddRange(new List<string>
         {
-            entries.AddRange(new[]
-            {
-                folder + "IPhoneTOC_BRA.txt",
-                folder + "IPhoneTOC_CHN.txt",
-                folder + "IPhoneTOC_DEU.txt",
-                folder + "IPhoneTOC_DUT.txt",
-                folder + "IPhoneTOC_ESN.txt",
-                folder + "IPhoneTOC_FRA.txt",
-                folder + "IPhoneTOC_ITA.txt",
-                folder + "IPhoneTOC_JPN.txt",
-                folder + "IPhoneTOC_KOR.txt",
-                folder + "IPhoneTOC_POR.txt",
-                folder + "IPhoneTOC_RUS.txt",
-                folder + "IPhoneTOC_SWE.txt"
-            });
-        }
+            "BRA", "CHN", "DEU", "DUT", "ESN", "FRA",
+            "ITA", "JPN", "KOR", "POR", "RUS", "SWE"
+        });
+        
+        // IB3 has a few additional languages.
+        if (game is Game.IB3)langs.AddRange(new List<string>
+        {
+            "ESM", "IND", "THA"
+        });
 
-        return entries;
+        return langs;
     }
 
     private static string GetStatusString(string modName, int? digit = null)

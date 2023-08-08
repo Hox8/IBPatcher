@@ -5,7 +5,7 @@ VisualStudioVersion = 17.5.33516.290
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IBPatcher", "IBPatcher\IBPatcher.csproj", "{2DEE743B-2A76-41FD-8785-24FE24F329D4}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnrealLib", "UnrealLib\UnrealLib\UnrealLib.csproj", "{8DC87893-9BED-4818-85FA-2A04E85FA75D}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnrealLib", "UnrealLib\UnrealLib\UnrealLib.csproj", "{4EFF9709-34FF-4923-862D-E87BF1614586}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,10 +17,10 @@ Global
 		{2DEE743B-2A76-41FD-8785-24FE24F329D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2DEE743B-2A76-41FD-8785-24FE24F329D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2DEE743B-2A76-41FD-8785-24FE24F329D4}.Release|Any CPU.Build.0 = Release|Any CPU
-		{8DC87893-9BED-4818-85FA-2A04E85FA75D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{8DC87893-9BED-4818-85FA-2A04E85FA75D}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{8DC87893-9BED-4818-85FA-2A04E85FA75D}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{8DC87893-9BED-4818-85FA-2A04E85FA75D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4EFF9709-34FF-4923-862D-E87BF1614586}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4EFF9709-34FF-4923-862D-E87BF1614586}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4EFF9709-34FF-4923-862D-E87BF1614586}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4EFF9709-34FF-4923-862D-E87BF1614586}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

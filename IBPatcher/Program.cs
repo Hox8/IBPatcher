@@ -36,7 +36,7 @@ internal static class Program
         
         // Announce the loaded game.
         Console.WriteLine(Globals.Separator);
-        Globals.PrintColor($"{UnLib.Globals.GameToString(ipa.Game)}\n", ConsoleColor.Green);
+        Globals.PrintColor($" {UnLib.Globals.GameToString(ipa.Game)}\n", ConsoleColor.Green);
         Console.WriteLine(Globals.Separator);
 
         using var modContext = new ModContext(ipa);

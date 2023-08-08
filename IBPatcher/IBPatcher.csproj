@@ -24,17 +24,16 @@
         <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
         <UseNativeHttpHandler>true</UseNativeHttpHandler>
         <UseSystemResourceKeys>true</UseSystemResourceKeys>
-        
     </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\UnrealLib\UnrealLib\UnrealLib.csproj" />
+    </ItemGroup>
 
     <ItemGroup>
         <Reference Include="Zip Reduced">
             <HintPath>Zip Reduced.dll</HintPath>
         </Reference>
-    </ItemGroup>
-
-    <ItemGroup>
-      <ProjectReference Include="..\UnrealLib\UnrealLib\UnrealLib.csproj" />
     </ItemGroup>
 
     <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

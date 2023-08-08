@@ -6,22 +6,12 @@ using UnLib.Enums;
 
 namespace IBPatcher.Models;
 
+[JsonSourceGenerationOptions(JsonSerializerDefaults.Web,
+    GenerationMode = JsonSourceGenerationMode.Metadata,
+    NumberHandling = JsonNumberHandling.Strict)]
 [JsonSerializable(typeof(JsonModBase))]
-[JsonSourceGenerationOptions(GenerationMode = JsonSourceGenerationMode.Metadata)]
 public partial class JsonCtx : JsonSerializerContext { }
 
-// @TODO: .NET 8 Preview 7 should eliminate the need for this class + other improvements
-public static class PersistentJsonCtx
-{
-    private static JsonSerializerOptions Options { get; } = new JsonSerializerOptions
-    {
-        PropertyNameCaseInsensitive = true
-    };
-        
-    public static JsonSerializerContext Context { get; } = new JsonCtx(Options);
-}
-
-// @TODO finalize error messages. Provide context!
 public static class JsonMod
 {
     private static string GetJsonErrorString(JsonException e)
@@ -81,7 +71,7 @@ public static class JsonMod
 
         try
         {
-            jsonMod = JsonSerializer.Deserialize(text, typeof(JsonModBase), PersistentJsonCtx.Context) as JsonModBase;
+            jsonMod = JsonSerializer.Deserialize(text, typeof(JsonModBase), JsonCtx.Default) as JsonModBase;
         }
         catch (JsonException e)
         {
@@ -117,14 +107,14 @@ public static class JsonMod
             if (file.File is null)
             {
                 // @ERROR: Filename was null.
-                mod.ErrorContext = "Filename was not specified!";
+                mod.ErrorContext = "A file's 'File' field was not specified";
                 return mod;
             }
             
             if (ConvertFileType(file.Type) is not FileType fileType)
             {
                 // @ERROR: Filetype was null.
-                mod.ErrorContext = "Filetype was not specified!";
+                mod.ErrorContext = $"{file.File}: File type was not specified";
                 return mod;
             }
             
@@ -134,7 +124,7 @@ public static class JsonMod
                 else
                 {
                     // @ERROR: Passed FileFlags was invalid.
-                    mod.ErrorContext = $"'{file.Mode}' is not a valid file mode!";
+                    mod.ErrorContext = $"{file.File}: File mode '{file.Mode}' is invalid";
                     return mod;
                 }
             }
@@ -150,14 +140,18 @@ public static class JsonMod
             if (file.Objects is null || file.Objects.Length == 0)
             {
                 // @ERROR: Objects was null or empty.
-                mod.ErrorContext = "No objects were specified!";
+                mod.ErrorContext = $"{file.File}: No objects were specified";
                 return mod;
             }
 
             foreach (var obj in file.Objects)
             {
-                // Object name can be null for UPKs.
-                obj.Object ??= string.Empty;
+                // Object can be an empty string, but error if it's unspecified.
+                if (obj.Object is null)
+                {
+                    mod.ErrorContext = $"{file.File}: An object's 'Object' field was not specified";
+                    return mod;
+                }
                 
                 if (ConvertFileFlags(obj.Mode) is not FileFlags objMode)
                 {
@@ -165,7 +159,7 @@ public static class JsonMod
                     else
                     {
                         // @ERROR: Passed FileFlags was invalid.
-                        mod.ErrorContext = $"'{obj.Mode}' is not a valid object mode!";
+                        mod.ErrorContext = $"{file.File}: object mode '{obj.Mode}' is invalid";
                         return mod;
                     }
                 }
@@ -180,7 +174,7 @@ public static class JsonMod
                 if (obj.Patches is null || obj.Patches.Length == 0)
                 {
                     // @ERROR: Patches was null or empty.
-                    mod.ErrorContext = "No patches were specified!";
+                    mod.ErrorContext = $"{obj.Object}: No patches were specified";
                     return mod;
                 }
 
@@ -192,17 +186,9 @@ public static class JsonMod
                         else
                         {
                             // @ERROR: Passed FileFlags was invalid.
-                            mod.ErrorContext = $"'{patch.Mode}' is not a valid mode!";
+                            mod.ErrorContext = $"{obj.Object}: patch mode '{patch.Mode}' is invalid";
                             return mod;
                         }
-                    }
-                    
-                    // Coalesced mod used patch type.
-                    if (fileType is FileType.Coalesced && patch.Type is not null)
-                    {
-                        // @ERROR: Coalesced patch type was specified.
-                        mod.ErrorContext = "Coalesced mods cannot use patch type";
-                        return mod; 
                     }
                     
                     if (Mod.ConvertPatchType(patch.Type) is not PatchType patchType)
@@ -210,10 +196,10 @@ public static class JsonMod
                         if (fileType is FileType.Upk)
                         {
                             // @ERROR: UPK patch type is null.
-                            if (patch.Type is null) mod.ErrorContext = "Patch type was not specified";
+                            if (patch.Type is null) mod.ErrorContext = $"{obj.Object}: Patch type was not specified";
                             
                             // @ERROR: UPK patch type not valid.
-                            else mod.ErrorContext = $"Patch type '{patch.Type}' is invalid";
+                            else mod.ErrorContext = $"{obj.Object}: Patch type '{patch.Type}' is invalid";
                             
                             return mod;
                         }
@@ -225,7 +211,7 @@ public static class JsonMod
                     if (patch.Value is null)
                     {
                         // @ERROR: Patch value was null.
-                        mod.ErrorContext = "Patch value was not specified!";
+                        mod.ErrorContext = $"{obj.Object}: Patch value was not specified";
                         return mod;
                     }
                     
@@ -241,7 +227,7 @@ public static class JsonMod
                 }
             }
         }
-
+        
         return mod;
     }
 }

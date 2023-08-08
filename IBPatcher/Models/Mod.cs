@@ -372,7 +372,7 @@ public class Mod
                         }
                         else
                         {
-                            file.Stream.BaseStream.Position = obj._export?.SerialOffset ?? 0 + (int)patch.Offset;
+                            file.Stream.BaseStream.Position = (obj._export?.SerialOffset ?? 0) + (int)patch.Offset;
                             file.Stream.Write(patch._value);
                         }
 
@@ -440,7 +440,8 @@ public class Mod
     
     private static string ParsePatchValue(ModPatch patch, UnrealPackage upk)
     {
-        // @TODO: Implement a way to take advantage of JsonElement value
+        // @TODO: Implement a way to take advantage of JsonElement value -- do not convert to string!
+        // JsonElement has methods like 'GetBoolean', 'GetInt32' etc.
         string value = patch.Value.ToString();
         
         switch (patch.Type)
@@ -531,7 +532,7 @@ public class Mod
                         if (result is null) return $"REFERENCE could not find a UObject matching '{objName}'!";
                         if (result is not FObjectExport) return $"";
 
-                        sb.Append(IntToHexString(result.SerializedIndex));
+                        sb.Append(IntToHexString(result.SerializedTableIndex));
                     }
 
                     // Name reference
@@ -587,13 +588,13 @@ public class Mod
     
     public static PatchType? ConvertPatchType(string? value) => value?.ToLower() switch
     {
-        "byte" => PatchType.Byte,
+        "byte" or "bytes" => PatchType.Byte,
         "boolean" => PatchType.Boolean,
-        "uint8" => PatchType.UInt8,
-        "int32" => PatchType.Int32,
+        "uint8" or "int8" => PatchType.UInt8,
+        "int32" or "int" or "integer" => PatchType.Int32,
         "float" => PatchType.Float,
         "string" => PatchType.String,
-        "replace" => PatchType.Replace,
+        "replace" => PatchType.Replace, // This should be a mode, not a type, but keeping as existing mods use this.
         _ => null
     };
     
