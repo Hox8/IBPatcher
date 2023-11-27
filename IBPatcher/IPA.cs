@@ -80,14 +80,14 @@ public class IPA : ErrorHelper<IpaError>
         {
             switch (upk.EngineVersion)
             {
-                case 868:
+                case > 864:
                     Game = Game.IB3;
                     IsLatestVersion = upk.EngineBuild == 13249;
                     break;
-                case >= 842 when Game is Game.Vote:
+                case > 788 when Game is Game.Vote:
                     IsLatestVersion = upk.EngineBuild == 9711;
                     break;
-                case >= 842:
+                case > 788:
                     Game = Game.IB2;
                     IsLatestVersion = upk.EngineBuild == 9714;
                     break;
