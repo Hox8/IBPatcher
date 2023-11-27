@@ -1,57 +1,98 @@
-﻿using System;
-using System.IO;
-using System.Text;
+﻿using System.Text;
 
-namespace IBPatcher;
-
-internal static class Program
+namespace IBPatcher
 {
-    private static void Main(string[] args)
+    internal class Program
     {
-        // Force working dir to application
-        Directory.SetCurrentDirectory(AppContext.BaseDirectory);
-        Console.Title = Globals.TitleString;
-        Console.OutputEncoding = Encoding.Default;  // So we can output unicode mod names.
-        
-#if DEBUG
-        args = new[] { @"C:\Users\User 1\Documents\.IPAs\IB2\Infinity Blade II v1.3.5 (64-bit).ipa" };
-#endif
-        
-        if (args.Length == 0)
+        static void Main(string[] args)
         {
-            Globals.PrintInfo();
-            Console.WriteLine("\nDrag and drop an IPA or zip file to get started.\n");
-            Globals.Close();
-            return;
-        }
-        
-        using var ipa = new IPA(args[0]);
-        if (ipa.HasError)
-        {
-            Globals.PrintInfo();
-            Console.WriteLine(ipa.ErrorContext);
-            Globals.Close();
-            return;
-        }
-        
-        // Announce the loaded game.
-        Console.WriteLine(Globals.Separator);
-        Globals.PrintColor($" {UnLib.Globals.GameToString(ipa.Game)}\n", ConsoleColor.Green);
-        Console.WriteLine(Globals.Separator);
+            Console.Title = Globals.AppTitle;
+            Console.OutputEncoding = Encoding.Default;
 
-        using var modContext = new ModContext(ipa);
-        if (modContext.ModCount == 0)
-        {
-            Console.WriteLine($"\nCouldn't find any mods under '{modContext.ModDirectory}'!");
-            Console.WriteLine("Place some mods in the mod folder and run the patcher again.\n");
-            Globals.Close();
-            return;
+            // Ensure we're working relative to the application's directory and not the IPA's.
+            Directory.SetCurrentDirectory(AppContext.BaseDirectory);
+
+#if UNIX
+            // macOS prints some junk at the top of each terminal window which we'll get rid of here
+            Globals.ClearConsole();
+#endif
+
+            // Print application info
+            Console.WriteLine(Globals.Separator);
+            Globals.PrintColor(Globals.AppTitle, ConsoleColor.Green);
+            Console.WriteLine($"\nCopyright © 2023 Hox, GPL v3.0\n{Globals.Separator}\n");
+
+            if (args.Length != 1)
+            {
+#if DEBUG
+                args = new[] { @"C:\Users\User 1\Downloads\Infinity Blade II v1.3.2 (32-bit).ipa" };
+#elif UNIX
+                // Unix cannot drag-and-drop onto executables, so drag-and-drop into live Terminal window instead
+                Console.Write("Drag an IPA onto this window to begin: ");
+
+                // Trim leading/trailing whitespace, quotation chars, and any escaped whitespace
+                args = [Console.ReadLine()?.Trim().Trim('\"').Replace("\\", "") ?? ""];
+                Console.WriteLine();
+#else
+                // Disallow drag-and-dropping into Console for Windows
+                Console.WriteLine("Start the patcher by drag-and-dropping an IPA onto the executable.");
+                Globals.PressAnyKey();
+                return;
+#endif
+            }
+
+            // IPA requires cache directory to be present
+            Directory.CreateDirectory(Globals.CachePath);
+
+            // Try to load the IPA and, if any errors occur, print them to the console
+            var ipa = new IPA(args[0]);
+            if (ipa.HasError)
+            {
+                Globals.PrintColor($" - {ipa.ErrorString}\n", ConsoleColor.Red);
+                Globals.PressAnyKey();
+                return;
+            }
+
+            PrintGameString(ipa);
+
+            var modCtx = new ModContext(ipa);
+            modCtx.LoadMods();
+
+            // Alert user if no mods were found, where to get some
+            if (modCtx.ModCount == 0)
+            {
+                string modFolderRelative = modCtx.ModFolder[AppContext.BaseDirectory.Length..];
+                Console.WriteLine($" - No mods found under '{modFolderRelative}'!\n   Place some mods in the folder and re-run the patcher.");
+                Globals.PressAnyKey();
+                return;
+            }
+
+            modCtx.ApplyMods();
+
+            Globals.PressAnyKey();
         }
-        
-        modContext.PrepareFiles();
-        modContext.ApplyMods();
-        modContext.Output();
-        
-        Globals.Close();
+
+        /// <summary>
+        /// Prints the loaded game's title and engine info to the console.
+        /// </summary>
+        /// <param name="ipa"></param>
+        private static void PrintGameString(IPA ipa)
+        {
+            Globals.ClearConsole();
+            Console.WriteLine(Globals.Separator);
+
+            string gameTitle = UnrealLib.Globals.GetString(ipa.Game, false);
+            string gameVersion = $"v{ipa.EngineVersion}, {ipa.EngineBuild}";
+            ConsoleColor color = ipa.IsLatestVersion ? ConsoleColor.Green : ConsoleColor.DarkYellow;
+
+            // Print game title (left-hand side)
+            Globals.PrintColor(gameTitle, color);
+
+            // Print game version info (right-hand side)
+            Console.SetCursorPosition(Globals.MaxStringLength - gameVersion.Length, Console.CursorTop);
+            Globals.PrintColor($"{gameVersion}\n", color);
+
+            Console.WriteLine($"{Globals.Separator}\n");
+        }
     }
 }

@@ -1,452 +1,461 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using IBPatcher.Models;
-using UnLib;
-using UnLib.Coalesced;
-using UnLib.Enums;
-using UnLib.Interfaces;
+﻿using IBPatcher.Mod;
+using Ionic.Zip;
+using UnrealLib;
+using UnrealLib.Config;
+using UnrealLib.Config.Coalesced;
+using UnrealLib.Core;
+using UnrealLib.Enums;
 
 namespace IBPatcher;
 
-public class ModContext : IDisposable
+public class ModContext
 {
-    private readonly IPA Ipa;
-    private readonly List<Mod> Mods = new();
-    private readonly List<string> CopyMods = new();
-    private readonly Dictionary<string, FileStream> TOCs = new();
-    private readonly Dictionary<string, IUnrealStreamable> Streams = new();
+    private const string Backspace = "\b\b\b\b\b\b\b\b\b\b";
+    private const string SuccessString = Backspace + " [SUCCESS]\n";
+    private const string FailureString = Backspace + " [FAILURE]\n";
+    private const string SkippedString = Backspace + " [SKIPPED]\n";
+    public const string CommandsModName = "Commands.txt";
+
+    public readonly IPA Ipa;
+    public List<ModBase> Mods = new();
+    public List<CachedArchive> ArchiveCache = new();
+
+    public readonly string ModFolder;
+    public string SaveErrorTitle;
+    public string SaveErrorMessage;
 
     public Game Game => Ipa.Game;
-    public string GameString => UnLib.Globals.GameToString(Game);
-    public string ModDirectory => Path.Combine("Mods", GameString);
-    private string WorkingDir => Path.Combine(Globals.TempPath, GameString);
-    private static string TempDir => Globals.TempPath;
-    public const string Backspace = "\b\b\b\b\b\b\b";
-    public int ModCount => Mods.Count + CopyMods.Count;
-    public int FailedCount = 0;
-
-    private static bool ShouldOutputIpa => !Directory.Exists("Output");
+    public string CommandsModPath => Path.Combine(ModFolder, CommandsModName);
+    public int ModCount => Mods.Count + (File.Exists(CommandsModPath) ? 1 : 0);
 
     public ModContext(IPA ipa)
     {
         Ipa = ipa;
-        Directory.CreateDirectory(WorkingDir);
-        
-        ReadMods();
+        ModFolder = Path.Combine(AppContext.BaseDirectory, "Mods", UnrealLib.Globals.GetString(Ipa.Game, true));
     }
 
-    private void ReadMods()
+    public void LoadMods()
     {
-        if (!Directory.Exists(ModDirectory)) Directory.CreateDirectory(ModDirectory);
+        var directory = Directory.CreateDirectory(ModFolder);
 
-        foreach (var modDir in Directory.GetFiles(ModDirectory))
+        // Read bin mods separately before everything else
+        foreach (var entry in directory.GetFiles("*.bin"))
         {
-            var fileName = Path.GetFileName(modDir);
+            Mods.Add(BinMod.ReadBinMod(entry.FullName, this));
+        }
 
-            switch (Path.GetExtension(fileName).ToLower())
+        foreach (var entry in directory.GetFiles())
+        {    
+            switch (entry.Extension.ToLowerInvariant())
             {
-                case ".json":
-                    Mods.Add(JsonMod.ReadJsonMod(modDir));
-                    break;
-                
                 case ".ini":
-                    Mods.Add(IniMod.ReadIniMod(modDir));
+                    Mods.Add(IniMod.ReadIniMod(entry.FullName, this));
+                    Mods[^1].Setup(this);
                     break;
-                
-                case ".bin":
-                    CopyMods.Add(Ipa.ZipPath(fileName));
-                    break;
-                
-                case ".txt":
-                    if (string.Equals(fileName, "Commands.txt", StringComparison.OrdinalIgnoreCase))
-                    {
-                        CopyMods.Add(Ipa.ZipPath("../Binaries/Commands.txt"));
-                        CopyMods.Add(Ipa.ZipPath("UE3Commandline.txt"));
-                        File.WriteAllText(Path.Combine(ModDirectory, "UE3Commandline.txt"), "-exec=\"Commands.txt\"");
-                    }
+                case ".json":
+                    Mods.Add(JsonMod.ReadJsonMod(entry.FullName, this));
+                    Mods[^1].Setup(this);
                     break;
             }
         }
     }
-    public void PrepareFiles()
-    {
-        foreach (var mod in Mods)
-        {
-            foreach (var file in mod.Files.Values)
-            {
-                file.QualifiedPath = Ipa.ZipPath(file.File);
-                string tempFilePath = Path.Combine(WorkingDir, file.QualifiedPath);
-                
-                // @ERROR: File not found within IPA.
-                if (!Ipa.HasEntry(file.QualifiedPath))
-                {
-                    mod.ErrorContext = $"File '{file.QualifiedPath}' not found in the IPA";
-                    break;
-                }
 
-                Streams.TryAdd(file.QualifiedPath, file.Type is FileType.Upk
-                    ? new UnrealPackage(tempFilePath)
-                    : new Coalesced(tempFilePath, Ipa.Game));
-                file.Stream = Streams[file.QualifiedPath];
+    /// <summary>
+    /// Extracts and initializes all cached archives.
+    /// </summary>
+    private void LoadCachedArchives()
+    {
+        long totalSize = 0, currentSize = 0;
+        int fileCount = 0;
+
+        foreach (var archive in ArchiveCache)
+        {
+            // Only tally stats of files that need extracting
+            if (archive.ShouldExtractFile)
+            {
+                totalSize += archive.Entry.UncompressedSize;
+                fileCount++;
             }
         }
 
-        // Copy all CopyMods to the temp directory.
-        foreach (var file in CopyMods)
-        {
-            string fileName = Path.GetFileName(file);
-            string outputFolder = Path.Combine(WorkingDir, file[..^fileName.Length]);
-            string modPath = Path.Combine(ModDirectory, fileName);
+        PrintMessage($"{Locale.ExtractingFiles} | {fileCount} {(fileCount == 1 ? Locale.WordFile : Locale.WordFiles)} | {GetSizeInMB(totalSize)} MB");
 
-            if (!Directory.Exists(outputFolder)) Directory.CreateDirectory(outputFolder);
-            File.Copy(modPath, Path.Combine(outputFolder, fileName));
-        }
-        
-        // Go over all UPK/Coalesced files used by mods and extract/initialize them.
-        Console.Write(GetStatusString("Unpacking game data") + "[ 00.0% ]");
-        int count = 0;
-        
-        foreach (var stream in Streams)
+        foreach (var archive in ArchiveCache)
         {
-            // If file has been copied, do not extract it from the IPA.
-            if (!CopyMods.Contains(stream.Key)) Ipa.ExtractEntry(stream.Key, WorkingDir);
-            
-            stream.Value.Init();
-            
-            string percentage = ((float)count++ / Streams.Count * 100).ToString("00.0");
-            Console.Write(string.Join(percentage, Backspace, "% ]"));
+            if (archive.ShouldExtractFile)
+            {
+                PrintPercentage((float)currentSize / totalSize);
+
+                archive.Entry.Extract(Globals.CachePath);
+                currentSize += archive.Entry.UncompressedSize;
+            }
+
+            archive.Archive = archive.Type is FileType.Upk
+                ? new UnrealPackage(Path.Combine(Globals.CachePath, archive.Entry.FileName), false)
+                : new Coalesced(Path.Combine(Globals.CachePath, archive.Entry.FileName), Ipa.Game, false);
         }
-        Console.WriteLine(new string('\b', 9) + "[SUCCESS]\n");
+
+        Console.WriteLine(SuccessString);
     }
 
     public void ApplyMods()
     {
-        // Cache the result for better performance + ensure remains constant.
-        bool shouldOutputIpaCached = ShouldOutputIpa;
-        
-        // Process CopyMods
-        for (var i = 0; i < CopyMods.Count; i++)
-        {
-            string fileName = Path.GetFileName(CopyMods[i]);
-            string outputPath = Path.Combine(ModDirectory, fileName);
+        int modCount = 0;               // Increments with every processed mod. Used for printing
+        int failCount = 0;              // Increments with every failed mod
+        int fileCount = 0;              // Increments with every modified archive. Used for printing
+        long bytesWritten = 0;
+        bool requiresTOCPatch = false;  // TOC patching is only necessary if bytes are added to a UPK
 
-            if (shouldOutputIpaCached)
-            {
-                Ipa.UpdateEntry(CopyMods[i], File.Open(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read));   
-            }
-            
-            Console.WriteLine(GetStatusString(fileName, i + 1) + "[SUCCESS]");
+        LoadCachedArchives();
+
+        // Commands mod
+        if (File.Exists(CommandsModPath))
+        {
+            // Create Binaries folder in cache directory
+            string binariesFolder = Globals.CachePath + Ipa.QualifyPath("../Binaries/");
+            Directory.CreateDirectory(binariesFolder);
+
+            File.Copy(CommandsModPath, binariesFolder + CommandsModName);
+            PrintMessage(CommandsModName, ++modCount);
+            Console.Write(SuccessString);
+
+            // Create a UE3CommandLine.txt file in the cache's CookedIPhone folder
+            File.WriteAllText(Globals.CachePath + Ipa.QualifyPath("UE3CommandLine.txt"), $"-exec=\"{CommandsModName}\"");
+
+            // Don't bother trying to poll file sizes
+            fileCount += 2;
         }
-        
-        // Process Mods
-        for (var i = 0; i < Mods.Count; i++)
+
+        foreach (var mod in Mods)
         {
-            var mod = Mods[i];
-            Console.Write(GetStatusString(mod.Name, CopyMods.Count + i + 1));
+            PrintMessage(mod.Name, ++modCount);
 
-            // If mod has error before processing (usually only missing file)
-            if (mod.HasError)
+            // Bin mods are processed on read, so check whether they've errored or not.
+            // No harm in calling Write() on file-less bin mods.
+            if ((mod.ModType is ModFormat.Bin && !mod.HasError) || mod.Link())
             {
-                FailedCount++;
-                Globals.PrintColor("[FAILED!]\n", ConsoleColor.Red);
-                continue;
-            }
-            
-            CreateFallbackFiles(mod);
-
-            if (!mod.Process(this))
-            {
-                FailedCount++;
-                RestoreFallbackFiles(mod);
-                Globals.PrintColor("[FAILED!]\n", ConsoleColor.Red);
+                mod.Write();
+                Console.Write(SuccessString);
             }
             else
             {
-                ClearFallbackFiles(mod);
-                Console.WriteLine("[SUCCESS]");
+                failCount++;
+                Globals.PrintColor(FailureString, ConsoleColor.Red);
             }
         }
-        
-        Console.WriteLine();
-        
-        // Finalize streams
-        foreach (var stream in Streams)
-        {
-            // If the file wasn't modified, discard it.
-            if (!stream.Value.Modified)
-            {
-                stream.Value.Dispose();
-                File.Delete(stream.Value.FilePath);
-                Streams.Remove(stream.Key);
-                continue;
-            }
-            
-            stream.Value.Save();
-            
-            // If ShouldOutputIpa, update the IPA entry.
-            // Otherwise, we need to explicitly dispose of here. IPA automatically disposes on save.
-            if (shouldOutputIpaCached)
-            {
-                Ipa.UpdateEntry(stream.Key, stream.Value.BaseStream);
-            }
-        }
-        
-        // TOC Fixup
-        // Ensure the TOC output path exists
-        string baseFolder = Path.Combine(WorkingDir, Ipa.CookedFolder);
-        if (!Directory.Exists(baseFolder)) Directory.CreateDirectory(baseFolder);
-        
-        foreach (var tocFile in GetTOCs(Game))
-        {
-            TOCs[tocFile] = File.Create(Path.Combine(WorkingDir, tocFile));
-        
-            // If ShouldOutputIpa, update the IPA entry
-            if (shouldOutputIpaCached)
-            {
-                Ipa.UpdateEntry(tocFile, TOCs[tocFile]);
-            }
-        }
-        Console.WriteLine(GetStatusString($"Fixing TOCs") + "[SUCCESS]");
-    }
-    
-    public void Output()
-    {
-        string outputError = string.Empty;
-        int fileCount = Streams.Count + CopyMods.Count /* + TOCs.Count*/;
-        
-        Console.Write(GetStatusString(
-            $"Saving {fileCount} file{(fileCount == 1 ? "" : "s")} to {(ShouldOutputIpa ? "IPA" : "output folder")}") + "[ 00.0% ]");
 
-        // Don't want to save if no files that need saving (ignore TOCs)
-        if (fileCount == 0)
+        // Close / clean up archives
+        foreach (var archive in ArchiveCache)
         {
-        }
-        else if (ShouldOutputIpa)
-        {
-            // If the IPA could not be saved (likely because output IPA was open)
-            if (!Ipa.SaveModdedIpa())
+            // If we've modified the archive, save changes
+            if (archive.Modified)
             {
-                // @ERROR: Remind user not to have the output IPA open.
-                outputError = $"The output IPA '{Ipa.ModdedName}' is in use!\nEnsure it is closed and try running the patcher again.";
+                bytesWritten += archive.Archive.Save();
+                fileCount++;
+
+                if (archive.Type is FileType.Upk && archive.Archive.OriginalLength != archive.Archive.Length)
+                {
+                    requiresTOCPatch = true;
+                }
             }
+
+            // Close stream
+            archive.Archive.Dispose();
+
+            // If archive wasn't modified, delete the file to prevent
+            // copying it over to the output destination
+            if (!archive.Modified)
+            {
+                File.Delete(archive.Archive.QualifiedPath);
+            }
+        }
+
+        Console.WriteLine();
+
+        PatchTOCs(requiresTOCPatch, ref fileCount);
+        Save(fileCount, bytesWritten, ref failCount);
+
+        HandleWarnings(/*failCount*/);
+        HandleErrors(failCount);
+        PrintConflicts();
+
+        // Clean up after ourselves
+        Directory.Delete(Globals.CachePath, true);
+    }
+
+    /// <summary>
+    /// Nulls the contents of every IPhoneTOC.txt file, which seems to have the same effect as recalculating them.
+    /// <br/>Deleting the TOC files outright will cause crashes for IB1.
+    /// </summary>
+    private void PatchTOCs(bool requiresTOCPatch, ref int fileCount)
+    {
+        PrintMessage("Patching TOCs");
+
+        if (requiresTOCPatch)
+        {
+            string basePath = Globals.CachePath + Ipa.MainFolder;
+
+            File.WriteAllText($"{basePath}IPhoneTOC.txt", null);
+
+            var languageExtensions = UnrealLib.Globals.GetLanguages(Ipa.Game)[1..];
+            foreach (string lang in languageExtensions)
+            {
+                File.WriteAllText($"{basePath}IPhoneTOC_{lang}.txt", null);
+            }
+
+            fileCount += 1 + languageExtensions.Length;
+            Console.Write(SuccessString);
         }
         else
         {
-            // Close streams manually so temp dir can be moved.
-            foreach (var stream in Streams.Values) stream.Dispose();
-            foreach (var stream in TOCs.Values) stream.Dispose();
-            
-            string outputPath = Path.Combine("Output", GameString);
+            Console.Write(SkippedString);
+        }
+    }
 
+    private void Save(int fileCount, long bytesWritten, ref int failCount)
+    {
+        bool outputFolder = Directory.Exists("Output");
+        string destinationString = outputFolder ? "Output Folder" : "IPA";
+
+        // In case we encounter an error
+        SaveErrorTitle = outputFolder ? "Save to Output Folder" : "Save to IPA";
+
+        PrintMessage($"Saving {fileCount} {(fileCount == 1 ? "file" : "files")} | {GetSizeInMB(bytesWritten)} MB | to {destinationString}");
+
+        // Don't save if even a single mod fails
+        if (failCount > 0)
+        {
+            Console.Write(SkippedString);
+            return;
+        }
+
+        string outputPath = outputFolder
+            ? Path.Combine("Output", UnrealLib.Globals.GetString(Ipa.Game, true))
+            : Path.ChangeExtension(Ipa.OriginalPath, null) + " - Modded.ipa";
+
+        if (outputFolder)
+        {
             try
             {
+                // Try move cache folder to output folder. If output folder already exists, try delete it
+
                 if (Directory.Exists(outputPath)) Directory.Delete(outputPath, true);
-                Directory.Move(WorkingDir, outputPath);
+                Directory.Move(Globals.PayloadPath, outputPath);
+
+                Console.Write(SuccessString);
             }
-            // If the output folder could not be deleted (likely due to an open file)
-            catch (IOException) when (Directory.Exists(outputPath))
+            catch  // Failed to delete existing Output folder (likely file inside was open)
             {
-                // @ERROR: Remind user to not have any relevant files open.
-                outputError = $"One or more files were open inside '{outputPath}'!\nEnsure all files are closed and try running the patcher again.";
-            }
-            // If the working directory could not be moved (likely a stream that wasn't closed)
-            catch (IOException)
-            {
-                // @ERROR: This should not happen. Uh-oh.
-                outputError = "Issues with internal folder!\nIf this persists after restarting your PC, please reach out for assistance.";
+                SaveErrorMessage = $"Failed to delete {outputPath}. Close any open files and retry.";
+                Globals.PrintColor(FailureString, ConsoleColor.Red);
+                failCount++;
             }
         }
-        
-        if (fileCount == 0) Console.WriteLine(Backspace + "\b\b[SKIPPED]\n");
-        else if (outputError.Length == 0) Console.WriteLine(Backspace + "\b\b[SUCCESS]\n");
         else
         {
-            FailedCount++;
-            Globals.PrintColor(Backspace + "\b\b[FAILED!]\n\n", ConsoleColor.Red);
-        }
-        
-        // Warnings + conflict detection - yellow font
-        var conflicts = GetConflicts();
-        if (conflicts.Count > 0)
-        {
-            Globals.PrintColor($"Warnings ({conflicts.Count})\n\n", ConsoleColor.Yellow);
-
-            foreach (var conflict in conflicts)
+            try
             {
-                Globals.PrintColor("  Conflict ", ConsoleColor.Yellow);
-                Console.WriteLine($"{conflict.Key}\n   - {string.Join("\n   - ", conflict.Value)}");
-                Console.WriteLine();
+                if (File.Exists(outputPath)) File.Delete(outputPath);
+
+                Ipa.SaveDirectory(Globals.CachePath);
+                Ipa.Save(outputPath);
+
+                Console.Write(SuccessString);
+            }
+            catch  // Failed to delete existing output IPA (likely was open)
+            {
+                SaveErrorMessage = $"IPA {outputPath} is in use. Close any apps using it and retry.";
+                Globals.PrintColor(FailureString, ConsoleColor.Red);
+                failCount++;
             }
         }
-        
-        // Error report - red font
-        if (FailedCount > 0)
-        {
-            Globals.PrintColor($"Errors ({FailedCount})\n\n", ConsoleColor.Red);
+    }
 
-            // Save error.
-            if (outputError.Length != 0)
+    private void HandleWarnings(/*int failCount*/)
+    {
+        int warningCount = (Ipa.IsLatestVersion ? 0 : 1) /*+ (failCount > 0 ? 1 : 0)*/ ;
+
+        if (warningCount > 0)
+        {
+            Globals.PrintColor($"\nWarnings ({warningCount})\n\n", ConsoleColor.Yellow);
+
+            if (!Ipa.IsLatestVersion)
             {
-                Console.WriteLine(outputError + '\n');
+                Globals.PrintColor($" - You are not using the latest version of {UnrealLib.Globals.GetString(Ipa.Game, true)}. Mods may not work correctly!\n", ConsoleColor.Yellow);
             }
-            
-            // Mod errors.
+
+            // I'm finding this annoying.
+            //if (failCount > 0)
+            //{
+            //    Globals.PrintColor(" - All mods must parse successfully in order to perform a save\n\n", ConsoleColor.Yellow);
+            //}
+        }
+    }
+
+    /// <summary>
+    /// Collate and print any errors to the console.
+    /// </summary>
+    /// <param name="failCount">The number of mods which failed.</param>
+    private void HandleErrors(int failCount)
+    {
+        if (failCount > 0)
+        {
+            Globals.PrintColor($"\nErrors ({failCount})\n", ConsoleColor.Red);
+
+            if (SaveErrorMessage is not null)
+            {
+                Console.WriteLine($"\n - {SaveErrorTitle}");
+                Globals.PrintColor($"   {SaveErrorMessage}\n", ConsoleColor.Red);
+            }
+
+            // Print mod errors
             foreach (var mod in Mods)
             {
-                if (!mod.HasError) continue;
-                
-                Console.WriteLine($"  {mod.Name}:");
-                Globals.PrintColor($"  {mod.ErrorContext}\n\n", ConsoleColor.Red);
+                if (mod.HasError)
+                {
+                    Console.Write($"\n - {mod.Name}");
+                    // Console.WriteLine($"{(mod.ErrorContext != "" ? $" | {mod.ErrorContext}" : "")}");
+                    Globals.PrintColor($"{(mod.ErrorContext != "" ? $" | {mod.ErrorContext}" : "")}\n", ConsoleColor.DarkGray);
+                    Globals.PrintColor($"   {mod.ErrorString}\n", ConsoleColor.Red);
+                }
+            }
+        }
+    }
+
+    // @TODO: Ideally do this behind the scenes during ModBase::Link(). Also use to influence mod load order
+    private void PrintConflicts()
+    {
+        Dictionary<FObjectExport, ConflictHelper> exports = new();
+        Dictionary<Section, ConflictHelper> sections = new();
+        int conflictCount = 0;
+
+        // Map out Exports and Sections and track which mods have made changes
+        foreach (var mod in Mods)
+        {
+            if (mod.HasError) continue;
+
+            foreach (var file in mod.Files)
+            {
+                foreach (var obj in file.Objects)
+                {
+                    if (file.FileType is FileType.Upk)
+                    {
+                        if (obj.Export is not null)
+                        {
+                            exports.TryAdd(obj.Export, new ConflictHelper($"{file.Archive.Archive.Filename}, {obj.Export}"));
+                            exports[obj.Export].Mods.Add(mod);
+                            if (exports[obj.Export].Mods.Count > 1) conflictCount++;
+                        }
+
+                        continue;
+                    }
+
+                    foreach (var patch in obj.Patches)
+                    {
+                        sections.TryAdd(patch.Section, new ConflictHelper($"{file.Archive.Archive.Filename}, {patch.Section}"));
+                        sections[patch.Section].Mods.Add(mod);
+                        if (sections[patch.Section].Mods.Count > 1) conflictCount++;
+                    }
+                }
+            }
+        }
+
+        if (conflictCount > 0)
+        {
+            Globals.PrintColor($"\nMod Conflicts ({conflictCount})\n", ConsoleColor.Yellow);
+
+            foreach (var export in exports)
+            {
+                export.Value.PrintConflicts();
+            }
+
+            // Do we care about these?
+            foreach (var section in sections)
+            {
+                section.Value.PrintConflicts();
             }
         }
     }
 
     #region Helpers
-    
-    /// Create copies of the files being worked on in case the mod errors so we can restore them.
-    private void CreateFallbackFiles(Mod mod)
+
+    public string QualifyPath(string path) => Ipa.QualifyPath(path);
+
+    public static string GetSizeInMB(long bytes) => $"{bytes / 1000000f:F2}";
+
+    public static void PrintPercentage(float percentage) => Console.Write($"{Backspace} [ {percentage * 100:00.0}% ]");
+
+    /// <summary>
+    /// Prints a message to the console. Used during mod patching process.
+    /// </summary>
+    public static void PrintMessage(string modName, int? digit = null)
     {
-        foreach (var file in mod.Files.Values)
-        {
-            string filePath = Path.Combine(WorkingDir, file.QualifiedPath);
-            File.Copy(filePath, filePath + "_");
-        }
-    }
+        string status = digit is null ? modName : $"  {digit:00} - {modName}";
 
-    /// Restores the existing fallback files when a mod encounters an error.
-    private void RestoreFallbackFiles(Mod mod)
-    {
-        foreach (var file in mod.Files.Values)
-        {
-            file.Stream.Dispose();
-            
-            string filePath = Path.Combine(WorkingDir, file.QualifiedPath);
-            
-            File.Delete(filePath);
-            File.Move(filePath + "_", filePath);
-            
-            file.Stream.Init();
-        }
-    }
+        // Globals.MaxStringLength - 14 to guarantee at least three period chars are shown before the success string 
+        status = status[..Math.Min(status.Length, Globals.MaxStringLength - 14)];
 
-    /// Deletes the fallback files as the mod was successful.
-    private void ClearFallbackFiles(Mod mod)
-    {
-        foreach (var file in mod.Files.Values)
-        {
-            File.Delete(Path.Combine(WorkingDir, file.QualifiedPath) + "_");
-        }
-    }
-
-    private Dictionary<string, List<string>> GetConflicts()
-    {
-        // Create a dictionary of all UObjects being used and the mod that uses them
-        // + Coalesced ini.sections
-        Dictionary<string, List<string>> usage = new();
-        
-        foreach (var mod in Mods)
-        {
-            if (mod.HasError || mod.IsIni) continue;
-
-            foreach (var file in mod.Files.Values)
-            {
-                foreach (var obj in file.Objects.Values)
-                {
-                    if (string.IsNullOrEmpty(obj.Object)) continue;
-                    if (file.Type is FileType.Upk)
-                    {
-                        usage.TryAdd(obj.Object, new List<string>());
-                        if (!usage[obj.Object].Contains(mod.Name)) usage[obj.Object].Add(mod.Name);
-                    }
-                    // SPECIAL! Do combination of ini + section
-                    else
-                    {
-                        foreach (var patch in obj.Patches)
-                        {
-                            string qualifiedSection = $"{obj.Object}.{patch.Section}";
-                            
-                            usage.TryAdd(qualifiedSection, new List<string>());
-                            if (!usage[qualifiedSection].Contains(mod.Name)) usage[qualifiedSection].Add(mod.Name);
-                        }
-                    }
-                }
-            }
-        }
-
-        foreach (var entry in usage)
-        {
-            if (entry.Value.Count < 2) usage.Remove(entry.Key);
-        }
-
-        return usage;
+        Console.Write($"{status} ".PadRight(Globals.MaxStringLength, '.'));
     }
 
     /// <summary>
-    /// Returns a list of TOC filepaths according to the passed Game. 
+    /// Attempts to retrieve a <see cref="CachedArchive"/> from within CachedArchives.
+    /// If not found, and file exists within IPA, one will be added.
     /// </summary>
-    private static List<string> GetTOCs(Game game)
+    public bool TryGetCachedArchive(ref readonly ModFile file, out CachedArchive outArchive)
     {
-        string folder = $"Payload/{(game is Game.Vote ? "Vote" : "Sword")}Game.app/";
+        string qualifiedPath = Ipa.QualifyPath(file.FileName)[1..]; // [1..] to remove leading '/'
 
-        var tocs = GetLanguages(game)[1..];
-        for (int i = 0; i < tocs.Count; i++)
+        foreach (var archive in ArchiveCache)
         {
-            tocs[i] = $"{folder}IPhoneTOC_{tocs[i]}.txt";
+            if (archive.Entry.FileName.Equals(qualifiedPath, StringComparison.OrdinalIgnoreCase))
+            {
+                outArchive = archive;
+                return true;
+            }
         }
-        tocs.Add($"{folder}IPhoneTOC.txt");
 
-        return tocs;
-    }
-
-    public static List<string> GetLanguages(Game game)
-    {
-        // INT will always be the first element.
-        List<string> langs = new() { "INT" };
-
-        // VOTE only has INT.
-        if (game is not Game.Vote) langs.AddRange(new List<string>
+        if (Ipa.GetEntry(qualifiedPath) is not ZipEntry entry)
         {
-            "BRA", "CHN", "DEU", "DUT", "ESN", "FRA",
-            "ITA", "JPN", "KOR", "POR", "RUS", "SWE"
-        });
-        
-        // IB3 has a few additional languages.
-        if (game is Game.IB3)langs.AddRange(new List<string>
-        {
-            "ESM", "IND", "THA"
-        });
+            outArchive = default;
+            return false;
+        }
 
-        return langs;
+        outArchive = new CachedArchive(entry, file.FileType);
+        ArchiveCache.Add(outArchive);
+        return true;
     }
 
-    private static string GetStatusString(string modName, int? digit = null)
-    {
-        // Ternary so we can use this method for non-mod strings.
-        string status = digit is null ? modName : $"  {digit:00} - {modName}";
-        
-        if (status.Length > Globals.MaxStrLength)
-            status = status[..(Globals.MaxStrLength - 3)];
-        
-        return $"{status} {new string('.', Globals.MaxStrLength - status.Length - 1)} ";
-    }
-    
     #endregion
 
-    public void Dispose()
+    private class ConflictHelper(string uri)
     {
-        foreach (var stream in Streams.Values)
-        {
-            stream.Dispose();
-        }
+        public readonly string URI = uri;
+        public List<ModBase> Mods = new();
 
-        foreach (var toc in TOCs.Values)
+        public void PrintConflicts()
         {
-            toc.Dispose();
+            if (Mods.Count > 1)
+            {
+                Globals.PrintColor($"\n - {URI} ({Mods.Count})\n", ConsoleColor.Yellow);
+                foreach (var mod in Mods)
+                {
+                    Console.WriteLine($"     - {mod.Name}");
+                }
+            }
         }
-        
-        Directory.Delete(TempDir, true);
-        
-        GC.SuppressFinalize(this);
     }
+}
+
+public class CachedArchive(ZipEntry entry, FileType type, bool shouldExtractFile = true)
+{
+    public UnrealArchive? Archive = null;
+    public readonly ZipEntry Entry = entry;
+    public readonly FileType Type = type;
+    public bool ShouldExtractFile = shouldExtractFile;
+    public bool Modified = false;
+
+    public UnrealPackage Upk => (UnrealPackage)Archive;
+    public Coalesced Coalesced => (Coalesced)Archive;
+    public bool HasError => Archive?.HasError ?? true;
 }
