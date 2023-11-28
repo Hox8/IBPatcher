@@ -169,7 +169,7 @@ public class ModPatch
                 PatchType.Int32 => new ModPatchValue { Int32 = int.Parse(value) },
                 PatchType.Float => new ModPatchValue { Float = float.Parse(value) },
                 PatchType.String => new ModPatchValue { String = value },
-                PatchType.Byte => new ModPatchValue { Bytes = Convert.FromHexString(value.Replace(" ", "")) },
+                PatchType.Byte or PatchType.Replace => new ModPatchValue { Bytes = Convert.FromHexString(value.Replace(" ", "")) },
                 _ => new ModPatchValue()
             };
         }
@@ -385,12 +385,6 @@ public class ModBase(string path, ModFormat type, Game game)
                             SetError(ModError.InappropriatePatchType, file, obj, patch);
                             return;
                         }
-
-                        if (patch.Type is PatchType.Replace && obj.Export is null)
-                        {
-                            SetError(ModError.UnspecifiedObjectReplace, file, obj, patch);
-                            return;
-                        }
                     }
                     else if (file.FileType is FileType.Upk)
                     {
@@ -422,7 +416,7 @@ public class ModBase(string path, ModFormat type, Game game)
                             return;
                         }
                     }
-                    else if (patch.Type is not PatchType.Unspecified or PatchType.Replace)
+                    else if (patch.Type is not (PatchType.Unspecified or PatchType.Replace))
                     {
                         SetError(ModError.UnspecifiedOffset, file, obj, patch);
                         return;
@@ -503,6 +497,16 @@ public class ModBase(string path, ModFormat type, Game game)
 
                     #endregion
 
+                    #region Type
+
+                    if (patch.Type is PatchType.Replace && obj.Export is null)
+                    {
+                        SetError(ModError.UnspecifiedObjectReplace, file, obj, patch);
+                        return false;
+                    }
+
+                    #endregion
+
                     #region Offset
 
                     // @TODO: Check patch value + offset length & UObject/UPK length don't cross
@@ -533,7 +537,11 @@ public class ModBase(string path, ModFormat type, Game game)
 
                         var upk = file.Archive.Upk;
                         upk.Stream.StartSaving();
-                        upk.Stream.Position = (int)patch.Offset + (obj.Export?.SerialOffset ?? 0);
+
+                        if (patch.Type is not PatchType.Replace)
+                        {
+                            upk.Stream.Position = (int)patch.Offset + (obj.Export?.SerialOffset ?? 0);
+                        }
 
                         switch (patch.Type)
                         {

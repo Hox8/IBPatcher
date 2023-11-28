@@ -150,13 +150,15 @@ public class ModContext
             // If we've modified the archive, save changes
             if (archive.Modified)
             {
-                bytesWritten += archive.Archive.Save();
-                fileCount++;
+                var intermediate = archive.Archive.Save();
 
-                if (archive.Type is FileType.Upk && archive.Archive.OriginalLength != archive.Archive.Length)
+                if (archive.Type is FileType.Upk && archive.Archive.OriginalLength != intermediate)
                 {
                     requiresTOCPatch = true;
                 }
+
+                bytesWritten += intermediate;
+                fileCount++;
             }
 
             // Close stream
@@ -246,7 +248,7 @@ public class ModContext
             }
             catch  // Failed to delete existing Output folder (likely file inside was open)
             {
-                SaveErrorMessage = $"Failed to delete {outputPath}. Close any open files and retry.";
+                SaveErrorMessage = $"Failed to delete '{outputPath}'. Close any open files and retry.";
                 Globals.PrintColor(FailureString, ConsoleColor.Red);
                 failCount++;
             }
@@ -264,7 +266,7 @@ public class ModContext
             }
             catch  // Failed to delete existing output IPA (likely was open)
             {
-                SaveErrorMessage = $"IPA {outputPath} is in use. Close any apps using it and retry.";
+                SaveErrorMessage = $"IPA '{outputPath}' is in use. Close any apps using it and retry.";
                 Globals.PrintColor(FailureString, ConsoleColor.Red);
                 failCount++;
             }
