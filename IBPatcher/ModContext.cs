@@ -193,25 +193,50 @@ public class ModContext
     {
         PrintMessage("Patching TOCs");
 
-        if (requiresTOCPatch)
-        {
-            string basePath = Globals.CachePath + Ipa.MainFolder;
-
-            File.WriteAllText($"{basePath}IPhoneTOC.txt", null);
-
-            var languageExtensions = UnrealLib.Globals.GetLanguages(Ipa.Game)[1..];
-            foreach (string lang in languageExtensions)
-            {
-                File.WriteAllText($"{basePath}IPhoneTOC_{lang}.txt", null);
-            }
-
-            fileCount += 1 + languageExtensions.Length;
-            Console.Write(SuccessString);
-        }
-        else
+        if (!requiresTOCPatch)
         {
             Console.Write(SkippedString);
+            return;
         }
+
+        string cookedPath = Ipa.CookedFolder[1..];  // Remove the prepending '/'
+        string tocPathPrefix = Ipa.Game is Game.Vote ? "..\\VoteGame\\CookedIPhone\\" : "..\\SwordGame\\CookedIPhone\\";
+            string basePath = Globals.CachePath + Ipa.MainFolder;
+        FTableOfContents masterTOC = new(Ipa.Game);
+
+        // Recalculate master TOC from scratch. Include all files from CookedIPhone directory
+        // LOC TOCs aren't required, so we'll simply include all of their exclusive content in here. Likely no observable difference during runtime.
+        foreach (var file in Ipa.EntriesSorted)
+        {
+            // We aren't interested in folders or files outside the cooked folder.
+            // While some files outside the cooked folder are valid, excluding them from the TOC makes no difference.
+            if (file.IsDirectory || !file.FileName.StartsWith(cookedPath)) continue;
+
+            masterTOC.AddEntry($"{tocPathPrefix}{file.FileName[cookedPath.Length..].Replace('/', '\\')}", (int)file.UncompressedSize, 0);
+        }
+
+        foreach (var archive in ArchiveCache)
+        {
+            // If the archive's length has changed, reflect this in the TOC
+            if (archive.Modified && archive.Archive.InitialLength != archive.Archive.LastLength)
+            {
+                string archivePath = $"{tocPathPrefix}{archive.Archive.QualifiedPath[(archive.Archive.DirectoryName.Length + 1)..].Replace('/', '\\')}";
+                masterTOC.UpdateEntry(archivePath, (int)archive.Archive.LastLength, 0);
+            }
+        }
+
+        // Write out master TOC file
+        masterTOC.Save($"{basePath}IPhoneTOC.txt");
+
+        // Zero-out all of the LOC TOCs. All LOC-specific files have been included in the master above.
+        var LOCs = UnrealLib.Globals.GetLanguages(Ipa.Game)[1..];
+        foreach (var loc in LOCs)
+        {
+            File.WriteAllText($"{basePath}IPhoneTOC_{loc}.txt", null);
+        }
+
+        fileCount += LOCs.Length + 1;
+        Console.Write(SuccessString);
     }
 
     private void Save(int fileCount, long bytesWritten, ref int failCount)
