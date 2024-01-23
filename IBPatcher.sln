@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.9.34407.89
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IBPatcher", "IBPatcher\IBPatcher.csproj", "{3EECEFC1-C425-4564-9682-5489410637D0}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IBPatcher", "src\IBPatcher.csproj", "{3EECEFC1-C425-4564-9682-5489410637D0}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnrealLib", "..\UnrealLib\src\UnrealLib.csproj", "{FD11D4AA-3AB8-45B4-B525-A37EC198B076}"
 EndProject
