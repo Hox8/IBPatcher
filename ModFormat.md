@@ -1,128 +1,254 @@
-# INI format
-The .INI format was designed by Niko_KV and released on the 8th of October, 2022. It is a flat structure where multiple patches belong to a single mod file. Metadata exists as comments at the start of a file describing the Mod's name, game, author, and date. It has been superseded by the .JSON format, but remains available for backwards compability and convenience for modders.
+﻿# Ini Format
+The INI format was designed by Niko_KV and shared on the 8th of October, 2022.
 
-## Ini Patch structure
-Key         | Explanation
-:---------: | ------------
-[Name]      | Keyless section header denoting the start of a new patch. Enclosed in square brackets as per the ini standard
-File        | A string referencing the file to be patched in the 'Payload/{Game}.app/CookedIPhone/' directory
-Offset      | An integer (int or hex) marking where in the file to write 'Value'. Can be followed by additional int offsets<br><br><ul> <li> Int: 3567575 </li> <li> Hex: 0x003f6da </li> <li> Int + int:&nbsp;3567575 + 02 </li> <li> Hex + int:&nbsp;0x003f6da + 125</li> </ul>
-Type        | A string influencing how the 'Value' key is interpreted. Types: 'Byte', 'Boolean', 'Integer', 'Float', 'String'
-Value       | The patch's value, whose type is determined by the 'Type' key. 'Byte' expects hexadecimal without prefix
-Size*       | An optional integer specifying the byte size of an Integer-type value. 1: UInt8, 4: Int32
-Original*   | This optional key is used to show the original value prior to patching, and is ignored by the patcher
-Enabled*    | An optional boolean which tells the patcher to ignore the patch if set to false. Defaults to true |
+Ini mods use a flat structure where ini mod files are comprised of multiple patches. Metadata exists as comments at the start of a file describing the mod's name, game, author, and date.
 
-<br>
+## Comments
+Lines starting with a semicolon ';' are treated as comments and ignored by the patcher.
+Trailing comments, where a semi colon appears on the same line after a value, **are not supported**.
 
-## ExampleMod.ini
-> [BytePatch]<br>
-> file    = SwordGame.xxx<br>
-> offset  = 0x00263473 + 9281<br>
-> type    = BYTE<br>
-> value   = 0B 0B C0
+```ini
+; This is a comment
+bDisable = true ; Trailing comments are not supported!
+```
 
->[FloatPatch]<br>
->file     = SwordGame.xxx<br>
->offset   = 0x00263473<br>
->type     = FLOAT<br>
->value    = 0.0625<br>
->original = 3.0<br>
->enabled  = false
-<br>
+## Structure
+TODO word this. Just bullet points atm.
+Ini mods follow the standard ini file syntax.
+Every patch must have its own unique header.
+Keys are not case-sensitive, and whitespace is ignored (with the exception being [string values](#patch-types)).
+Any unknown keys which are not included in the below table are ignored.
 
-# JSON format
-The .JSON format was designed by myself and follows a hierarchical structure as shown below. It offers several features over the .ini format, such as cross-version compatibility, coalesced patches, and name/object lookups. These mods must be created by hand as there is no GUI creation tool as of yet (I recommend Visual Studio Code for its syntax highlighting and linting. Notepad++ is a close second)
- 
- - Root
-    - Files
-      - Objects
-        - Patches
-      - Inis
-        - Sections
+### Ini Patch
+|    Key    | Description                                                                                                                                                                                                                                                        | Required |
+|:---------:|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------:|
+|  `File`   | Specifies which file relative to the CookedIPhone folder the patch is modifying.                                                                                                                                                                                   |  `Yes`   |
+| `Offset`  | The byte offset within the file where the patch data should be written. Offset value can be either base 10 or 16, followed by any number of optional integer offsets.<ul><li>Hexadecimal offset: `0x56DF27`<li>Integer offset: `5693223 + 44`                      |  `Yes`   |
+|  `Type`   | Indicates the [data type](#patch-types) `Value` should be interpreted as.                                                                                                                                                                                          |  `Yes`   |
+|  `Value`  | The value, interpreted as `Type`, to paste within `File` at `Offset`.                                                                                                                                                                                              |  `Yes`   |
+|  `Size`   | A **deprecated optional** parameter used in conjunction with the `Int32` `Type`. When set to `1`, `Type` is converted from `Int32` to `UInt8`.<br><br>This parameter is kept for backwards compatibility only—newer ini mods should use the `UInt8` type directly. |   `No`   |
+| `Enabled` | An **optional** parameter used to tell the patcher to skip over the current patch.<br/><br/>`Enabled` defaults to `True` when not specified.                                                                                                                       |   `No`   |
 
-<br> The following tables lists all the various structures of a JSON mod. Properties ending with '\*' are optional and do not need to be passed. JSON does not support comments, so any property beginning with '//' will be treated as a comment and ignored.<br>
+<br/>
 
-## Root
-Property       | Type     | Explanation
-:------------: | :------: | ------------
-Name*          | String   | The internal name of the mod. If the mod cannot be read, or if this value is null, the filename is used instead
-Description*   | String   | A summary describing what the mod does
-Author*        | String   | The name of the mod's creator
-Version*       | String   | The version of the mod, if applicable. Defaults to v1.0.0
-Date*          | String   | The date the mod was published
-Game           | String   | The game the mod is intended for. If the game does not equal the loaded ipa, the mod is skipped
-Files          | File[]   | An array of files this mod is applying patches to |
+<details>
+<summary>Example</summary>
 
-<br>Root can contain any number of File objects in its 'Files' array. Each File instructs the patcher to find a certain file within the game's files, as well as how to interpret it<br>
+```ini
+; *****************************
+; Mod's game:       Infinity Blade II
+; Mod's name:       Example Mod
+; Mod's details:    This mod prevents the game from doing a thing, and reduces the cooldown of another thing.
+;
+; Mod's author:     Some Author (2023.10.27)
+; *****************************
 
-## File
-Property    | Type       | Explanation
-:---------: | :--------: | -----------
-fileName    | String     | The name of the file to be patched. All files must be within the CookedIPhone folder
-fileType    | String     | The type of file to be patched. Types include: "UPK" and "Coalesced"
-Objects*    | Object[]   | The array of Object objects -- if filetype is "UPK"
-Inis*       | Ini[]      | The array of Ini objects -- if filetype is "Coalesced" |
+[A patch with a self-explanatory section header]
+file     = SwordGame.xxx
+offset   = 0x0022BE94
+type     = byte
+value    = DE AD BE EF
 
-<br>
+[Another example patch]
+file    = 03_P_Forest.xxx
+offset  = 0x0022BE94 + 66 + 5
+type    = float
+value   = 0.5
 
-## Object
-Property     | Type      | Explanation
-:----------: | :-------: | -----------
-objectName   | String    | The name of a UObject within an Unreal package
-Patches      | Patch[]   | The array of Patch objects belonging to this Object
+[One final patch]
+file    = 03_P_Forest.xxx
+offset  = 50
+type    = int32
+value   = -500
+```
 
-### Patch
-Property    | Type       | Explanation
-:---------: | :--------: | -----------
-Type        | String     | The data type to interpret 'Value' as. Availble types include: 'Bytes', 'Boolean', 'UInt8', 'Int32', 'Float', 'String'
-Offset      | Integer    | Determines the offset from the start of the parent object to write this patch's value
-Value       | Variable   | The data to be patched to the file. Number types can be passed by number format or string
-Size*       | Integer    | Specifies the maximum length for a string patch. String values shorter than 'Size' will be padded with '0B' tokens. A negative 'Size' value will force unicode encoding
-Enabled*    | Boolean    | If set to false, the patch will be ignored. Defaults to true |
+</details>
 
-<br>
+# JSON Format
+The JSON format was created following a need for greater control, such as the ability to patch coalesced files and manipulate UObjects within Unreal packages.
 
-## Ini
-Property    | Type        | Explanation
-:---------: | :---------: | -----------
-iniPath     | String      | The path of the ini as it appears inside a coalesced file, e.g., '..\\..\\SwordGame\\Config\\SwordItems.ini'
-Sections    | Section[]   | The array of Section objects to apply to this ini file
-Mode*       | String      | Determines how the ini file should be handled: "Delete" deletes the ini file, "Overwrite" wipes the file before writing and "Append" adds to the file as-is. Defaults to "Append"
-Enabled*    | Boolean     | If set to false, the ini and all its sections will be ignored. Defaults to true |
+JSON mods currently must be created by hand as there is no GUI creation tool as of yet.
+It is not recommended to create JSON files with a standard editor like Notepad.
+Visual Studio Code is a great option due to its linting and auto-indentation.
 
-### Section
-Property      | Type       | Explanation
-:-----------: | :--------: | -----------
-sectionName   | String     | The section in the ini file to write 'Properties' under
-Properties    | String[]   | The array of Key/Value pairs to place under 'sectionName' in the file
-Mode*         | String     | Determines how the section should be handled: "Delete" deletes the section and all its properties, "Overwrite" clears the section's existing properties before writing and "Append" adds to the section as-is. Defaults to "Append"
-Enabled*      | Boolean    | If set to false, the section will be ignored. Defaults to true |
+## Comments
+JSON files do not support comments the same way ini files do. JSON comments are typically written as standard key/value pairs:
+```json
+{
+  "//": "This is a comment!",
+  "//": "This is another comment!"
+}
+```
 
-<br>
+## Structure
+JSON mods follow standard JSON syntax. Keys are not case-sensitive, and whitespace is ignored.
 
-# Name and Object references
-Starting with v1.2, name and object references can be used inside of byte type patches. Name and object references allow modders to specify objects and names by reference rather than hardcoded bytes. This makes modding easier since we can use references directly without needing to find their internal indicies, and it also allows for cross-compatibility across different versions, as every version stores its names and objects in different positions.
+### Hierarchy visualization
+```
++ ModBase             - Every JSON mod file has a single ModBase           
+  + ModFile           - ModFiles inherit from the root ModBase 
+    + ModObject       - ModObjects inherit from their parent ModFile
+      + ModPatch      - ModPatches inherit from their parent ModObject
+```
 
-## Object references
-An object reference is a string contained within square brackets, e.g. '[PlayerPawn]'. The patcher will attempt to find the object (in this case "PlayerPawn") and convert it into the equivalent bytecode for the current package.
+### ModBase
+ModBase is the root element of the JSON which describes the core data of a mod, including metadata, target game, and required files.
 
-## Name references
-Name references in JSON mods are very similar to how names appear within UnrealScript. A name reference is a string name as it appears within the UnrealScript, contained within curly braces, i.e. '{Sword}'. Name references can also utilize name _instances_, and they look exactly how they appear within UnrealScript, i.e. '{Sword_26}'.
+|      Key      | Description                                                             | Required |   Type   |
+|:-------------:|:------------------------------------------------------------------------|:--------:|:--------:|
+|    `Name`     | A string name the mod can use instead of its filename.                  |   `No`   | `String` |
+| `Description` | A string providing a brief summary on what the mod does.                |   `No`   | `String` |
+|   `Author`    | A string indicating the author(s) of the mod.                           |   `No`   | `String` |
+|    `Game`     | A string indicating the target game, e.g. `Infinity Blade II` or `IB2`. |  `Yes`   | `String` |
+|    `Files`    | An array of `ModFile` files.                                            |  `Yes`   | `Array`  |
 
-### Examples of object and name reference usage inside 'BYTE' values:
-- "value": "1B {LoadStartNewBloodline} 26 16 01 [UnlockedNewGamePlus] 01 [UnlockedNewGamePlus] 0B 0B 0B"<br>
-- "value": "{FlashItemWon}"<br>
-- "value": "{Sword_139}"<br>
+### ModFile
+ModFile describes a file within the IPA to be used by the mod.
 
-<br>
+|    Key    | Description                                                                                                                                                                                                                                                                             | Required |   Type   |
+|:---------:|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------:|:--------:|
+|  `File`   | The path of the target file. Supports multiple styles, including: <ul><li>`Absolute pathing:` '/Payload/SwordGame.app/Default.png'<li>`Relative pathing:` '../../../iTunesArtwork.jpg'<li>`Relative pathing:` 'SwordGame.xxx'</ul> Relative pathing bases from the CookedIPhone folder. |  `Yes`   | `String` |
+|  `Type`   | Tells the patcher how to interpret `File`, and influences what fields should be used across `ModObject` and `ModPatch`. Current possible values include `UPK` and `Coalesced`.                                                                                                          |   `No`   | `String` |
+| `Objects` | An array of `ModObject` objects.                                                                                                                                                                                                                                                        |  `Yes`   | `Array`  |
 
-# Bin mods
-Bin mods are simply file replacements. If the patcher finds a file with a '.bin' extension, it will add it to the target IPA or output folder. .Bin mods are used to copy *pre-patched* coalesced.bin files into the target destination, but with the addition of .JSON mods in v1.2, the need for bin mods has greatly diminished. They are kept only for backwards compatibility and modders' convenience.
+### ModObject
+For UPK files, ModObject describes the `UObject` within the UPK to target.<br/>
+For Coalesced files, ModObject describes the `Ini` within the Coalesced file to target.
 
-<br>
+|    Key    | Description                                                                                                            | Required |   Type   |
+|:---------:|:-----------------------------------------------------------------------------------------------------------------------|:--------:|:--------:|
+| `Object`  | <ul><li>`UPK:` The UObject within the UPK file to target.<li>`Coalesced:` The Ini within the Coalesced file to target. |  `Yes`   | `String` |
+| `Patches` | An array of `ModPatch` patches.                                                                                        |  `Yes`   | `Array`  |
 
-# Command mods
-A command "mod" is also a file replacement. Unreal Engine 3 games can take advantage of a file which runs console commands at startup which can be used to control various settings, like the framerate cap, graphics settings, configurable script options and more. The patcher is designed to look for a file named 'Commands.txt' in the mods folder, and if it is found, it will be copied to the target IPA or output folder.<br>
+### ModPatch
+Responsible for patching in information, using the parent ModObject and ModFile.<br/>
+Some fields are exclusive to UPK/Coalesced files, but most are used by both.
 
-'Commands.txt' needs one other file in order to function, 'UE3CommandLine.txt'. This file instructs the game to execute the contents of 'Commands.txt' into the console at startup. This file is generated automatically by the patcher unless it is supplied by the user.
+|    Key    | Description                                                                                                                                                                                               |  Used With  | Required |    Type    |
+|:---------:|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:-----------:|:--------:|:----------:|
+| `Section` | The section to target within the Ini. A section will be created if one is not found.                                                                                                                      | `Coalesced` |  `Yes`   |  `String`  |
+|  `Type`   | Indicates the [data type](#patch-types) `Value` should be interpreted as.                                                                                                                                 |    `UPK`    |  `Yes`   |  `String`  |
+| `Offset`  | An offset to use in conjunction with the UObject. `Offset` should not be used for [replace type values](#patch-types).                                                                                    |    `UPK`    |  `Yes`   |  `Number`  |
+|  `Value`  | <ul><li>`UPK:` The value to write in the file at the start of `Object` + `Offset`<li>`Coalesced:` A `string` or `string[]` to insert under `Section`. See [here](#ini-stub) for special formatting rules. |   `Both`    |  `Yes`   | `Variable` |
+| `Enabled` | An **optional** parameter used to tell the patcher to skip applying the current patch.<br/><br/>Defaults to `True` when not specified.                                                                    |   `Both`    |   `No`   | `Boolean`  |
+
+<br/>
+
+<details>
+<summary>Example</summary>
+
+```json
+{
+  "name": "Example Mod",
+  "description": "Forces the fast forward button to appear for all cinematic sequences and removes its 1s delayed start",
+  "game": "Infinity Blade II",
+  "author": "Some Author",
+  "files": [
+    {
+      "file": "SwordGame.xxx",
+      "type": "UPK",
+      "objects": [
+        {
+          "object": "SwordPC.OnStartCinematicMode",
+          "patches": [
+            {
+              "//": "Globally force the fast forward button to appear",
+              "type": "byte",
+              "offset": 72,
+              "value": "28 16 00 73 09 00 00 00 73 09 00 00 00 73 09 00 00 0B 0B 0B"
+            }
+          ]
+        },
+        {
+          "object": "SwordHudBase.OnMobileInputZoneAdded",
+          "patches": [
+            {
+              "//": "Modifies the delay (in seconds) before fast forward button appears. Disabled by default",
+              "type": "float",
+              "offset": 334,
+              "value": 0,
+              "enabled": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "Coalesced_INT.bin",
+      "type": "Coalesced",
+      "objects": [
+        {
+          "object": "SwordGame/Config/IPhone-SwordEngine.ini",
+          "patches": [
+            {
+              "//": "Adds a single value to the SwordGame.SwordBasePC section within IPhone-SwordEngine.ini",
+              "section": "SwordGame.SwordBasePC",
+              "value": "bCanBuyGoldFromStore=false"
+            },
+            {
+              "//": "Clears the SystemSettingsIPhone3GS section and adds a few lines to it",
+              "section": "!SystemSettingsIPhone3GS",
+              "value": [
+                "BasedOn=SystemSettingsMobile",
+                "MobileContentScaleFactor=2.0",
+                "DynamicShadows=False"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+</details>
+
+# INI STUB
+Stub. Don't forget to mention adding `!` before a section name to clear all its properties.
+
+Some string giving a brief overview of what these are and why they shouldbe used. Don't forget to mention defaulting to `.` if not specified. 
+
+|       Name       | Operator | Description                                                                                                                            |     Example      |
+|:----------------:|:--------:|:---------------------------------------------------------------------------------------------------------------------------------------|:----------------:|
+|      Empty       |   `!`    | Removes all instances of the key. Any value after `=` is ignored.<br/><br/>Suitable for emptying arrays.                               |   `!MyArray=`    |
+|      Remove      |   `-`    | Remove the matching key/value pair.<br/><br/>Suitable for removing array entries or individual keys.                                   | `-MyArray=Value` |
+|      Append      |   `+`    | Adds the key/value pair if it doesn't already exist.                                                                                   | `+MyArray=Value` |
+| Append Duplicate |   `.`    | Append the value to the array, even if the value already exists in the array.                                                          | `.MyArray=Value` |
+
+# Patch Types
+Here is a table describing each of the available patch types used by both INI and JSON mods.
+
+|   Type    | Description                                                                                                                                                 | Number of bytes | Expected value type |
+|:---------:|:------------------------------------------------------------------------------------------------------------------------------------------------------------|:---------------:|:-------------------:|
+|  `Bool`   | A standard Boolean. `True` is mapped to `0x01`, and `False` is mapped to `0x00`.                                                                            |       `1`       |      `Boolean`      |
+|  `UBool`  | An UnrealScript Boolean. `True` is mapped to `0x27` and `False` is mapped to `0x28`.                                                                        |       `1`       |      `Boolean`      |
+|  `UInt8`  | An unsigned byte. Value must range from `0` to `255`.                                                                                                       |       `1`       |      `Number`       |
+|  `Int32`  | A signed integer. Value must range from `-2147483648` to `2147483647`.                                                                                      |       `4`       |      `Number`       |
+|  `Float`  | A standard float. Value must range from `-3.4e38` to `3.4e38`.                                                                                              |       `4`       |      `Decimal`      |
+| `String`  | An ANSI-only string which doesn't append a null terminator.                                                                                                 |   `Variable`    |      `String`       |
+|  `Byte`   | A hexadecimal string with no hex suffixes. Case-insensitive and whitespace tolerant.                                                                        |   `Variable`    |      `String`       |
+| `Replace` | A special type available to JSON mods. Identical to the `Byte` type, but instructs the patcher to replace the UObject's data entirely with that of `Value`. |   `Variable`    |      `String`       |
+
+# Miscellaneous
+### Bin mods
+Bin mods are typically pre-patched Coalesced files exported from the Coalesced Editor, and offer a way
+to quickly test Coalesced edits without needing to create a JSON mod.
+
+Mod creators should prefer to distribute JSON mods over bin mods, as the latter are not transparent and do
+not always work well when patched with other Coalesced-targeting mods.
+
+### Commands mod
+IBPatcher looks for a file, 'Commands.txt', which applies ini tweaks at runtime.
+The Google Drive folder has a version tailored to each game which is fully documented and configurable.
+
+### TOC patching
+TODO outdated, patcher now recalculates TOCs!!
+
+The patcher will automatically patch the game's TOC files if any script package changed size,
+which usually results from a mod using a `replace` type patch.
+
+`TOC` stands for `Table of Contents`, and is essentially a manifest file telling the game what sizes it should expect its files to be.
+If one of the script packages changes length, the game will notice and exit on startup.
+
+To overcome this, the patcher will empty the contents of all TOC files -
+UE3 cannot check the file sizes if it doesn't have anything to compare against.
