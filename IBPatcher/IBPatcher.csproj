@@ -3,25 +3,22 @@
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
 		<TargetFramework>net8.0</TargetFramework>
-		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<PublishAot>true</PublishAot>
-		<Features>InterceptorsPreview</Features>
-		<JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
 	</PropertyGroup>
 
 	<PropertyGroup>
 		<Version>1.2.4</Version>
 		<Authors>Hox</Authors>
 		<Product>IBPatcher</Product>
-		<Copyright>© 2023 Hox</Copyright>
+		<Copyright>Copyright © 2024 Hox</Copyright>
 		<ApplicationIcon>Assets\Icon256.ico</ApplicationIcon>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 	</PropertyGroup>
 
 	<PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
 		<DebugType>none</DebugType>
-		<PublishAot>true</PublishAot>
+		<DebugSymbols>false</DebugSymbols>
 		<DebuggerSupport>false</DebuggerSupport>
 		<MetricsSupport>false</MetricsSupport>
 		<StartupHookSupport>false</StartupHookSupport>
@@ -35,25 +32,36 @@
 		<MetadataUpdaterSupport>false</MetadataUpdaterSupport>
 		<UseNativeHttpHandler>true</UseNativeHttpHandler>
 		<UseSystemResourceKeys>true</UseSystemResourceKeys>
-
-		<!-- Remove stack trace messages for a decent reduction in size (~100kb) -->
 		<StackTraceSupport>false</StackTraceSupport>
-
-		<!-- Significant size savings, but System.Text.Json apparently requires this to be left enabled -->
-		<IlcDisableReflection>false</IlcDisableReflection>
-
-		<!-- This switch will cause issues with delegate equality -->
 		<IlcFoldIdenticalMethodBodies>true</IlcFoldIdenticalMethodBodies>
+
+		<!-- Significant size savings, but System.Text.Json requires runtime reflection despite source generation -->
+		<IlcDisableReflection>false</IlcDisableReflection>
 	</PropertyGroup>
 
+	<PropertyGroup Condition="'$(OS)'!='Windows_NT'">
+		<DefineConstants>UNIX</DefineConstants>
+	</PropertyGroup>
+	
 	<ItemGroup>
-		<ProjectReference Include="..\UnrealLib\UnrealLib\UnrealLib.csproj" />
+		<ProjectReference Include="..\..\UnrealLib\src\UnrealLib.csproj" />
+		<ProjectReference Include="..\..\Zip\src\Zip.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<Reference Include="Zip Reduced">
-			<HintPath>Zip Reduced.dll</HintPath>
-		</Reference>
+		<Content Include="..\ModFormat.md">
+			<Link>ModFormat.md</Link>
+		</Content>
+		<Content Include="..\README.md">
+			<Link>README.md</Link>
+		</Content>
 	</ItemGroup>
+
+	<!-- Will use DLL at end of the day but using direct .csproj reference for easier initial developemnt -->
+	<!--<ItemGroup>
+	  <Reference Include="Zip">
+	    <HintPath>Zip.dll</HintPath>
+	  </Reference>
+	</ItemGroup>-->
 
 </Project>
