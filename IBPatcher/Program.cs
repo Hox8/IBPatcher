@@ -1,97 +1,130 @@
-﻿using System.Text;
+﻿using System;
+using System.IO;
+using System.Text;
 
 namespace IBPatcher;
 
-internal class Program
+/*
+ * TODOS
+ * 
+ * 5.
+ * Ini and json keys should be named consistently!
+ * 
+ * 0.
+ * Rewrite of Section--forgot to re-add section clearing and special char support. Add this back!
+ * 
+ * 1.
+ * Finalize conflict handling (two replace patches targeting the same UObject should cause an error)
+ * 
+ * 2.
+ * Error messages are boring and vague. Do something about this.
+ * 
+ * 4. (design philosophy, low priority)
+ * UnrealArchive operations should probably be done through a middle man; mods should not have direct references to UPKs (see ModFile's Archive field).
+ * Expand/rework CachedArchives to support this. Could also make it easier to handle conflicts and other usage statistics.
+ * 
+ */
+
+internal static class Program
 {
-    static void Main(string[] args)
+    internal static void Main(string[] args)
     {
         Console.Title = Globals.AppTitle;
-        Console.OutputEncoding = Encoding.Default;
+        Console.OutputEncoding = Encoding.UTF8;
+        Directory.SetCurrentDirectory(AppContext.BaseDirectory);    // Force set the working directory to that of the executable
+        Directory.CreateDirectory(Globals.CachePath);               // Create a directory to store temporary files. Disposed of during PrepareForExit()
 
-        // Ensure we're working relative to the application's directory and not the IPA's.
-        Directory.SetCurrentDirectory(AppContext.BaseDirectory);
-
-#if UNIX
-        // macOS prints some junk at the top of each terminal window which we'll get rid of here
+        // Terminal "fluff" is often printed at the top of the window which we'll get rid of here
         Globals.ClearConsole();
-#endif
 
-        // Print application info
+        // Print application info. This is only seen if no arguments were passed or the IPA failed
         Console.WriteLine(Globals.Separator);
         Globals.PrintColor(Globals.AppTitle, ConsoleColor.Green);
         Console.WriteLine($"\nCopyright © 2023 Hox, GPL v3.0\n{Globals.Separator}\n");
 
+        // Print instructions if no arguments were passed
         if (args.Length != 1)
         {
 #if DEBUG
-            args = new[] { @"C:\Users\User 1\Downloads\Infinity Blade II v1.3.2 (32-bit).ipa" };
+            args = [@"C:\Users\User 1\Downloads\Infinity Blade II v1.3.5 (64-bit & 32-bit).ipa"];
 #elif UNIX
-            // Unix cannot drag-and-drop onto executables, so drag-and-drop into live Terminal window instead
+            // Unix cannot drag-and-drop onto executables, so prompt to drag-and-drop into the active Terminal window instead
             Console.Write("Drag an IPA onto this window to begin: ");
 
             // Trim leading/trailing whitespace, quotation chars, and any escaped whitespace
             args = [Console.ReadLine()?.Trim().Trim('\"').Replace("\\", "") ?? ""];
             Console.WriteLine();
 #else
-            // Disallow drag-and-dropping into Console for Windows
+            // Do not allow the above Unix method on Windows. Tell user to drag-and-drop instead
             Console.WriteLine("Start the patcher by drag-and-dropping an IPA onto the executable.");
-            Globals.PressAnyKey();
+            PrepareForExit();
             return;
 #endif
         }
 
-        // IPA requires cache directory to be present
-        Directory.CreateDirectory(Globals.CachePath);
-
-        // Try to load the IPA and, if any errors occur, print them to the console
+        // Attempt to load the passed IPA file
         var ipa = new IPA(args[0]);
+
         if (ipa.HasError)
         {
-            Globals.PrintColor($" - {ipa.ErrorString}\n", ConsoleColor.Red);
-            Globals.PressAnyKey();
+            Globals.PrintColor($" - {ipa.GetErrorString()}\n", ConsoleColor.Red);
+            PrepareForExit();
             return;
         }
 
-        PrintGameString(ipa);
+        // Clear out the earlier application info and print IPA info instead
+        Globals.ClearConsole();
+        PrintIpaInfo(ipa);
 
-        var modCtx = new ModContext(ipa);
-        modCtx.LoadMods();
+        var modContext = new ModContext(ipa);
+        modContext.LoadMods();
 
-        // Alert user if no mods were found, where to get some
-        if (modCtx.ModCount == 0)
+        // If there weren't any mods in the loaded game's mod directory, prompt the user to obtain some
+        if (modContext.ModCount == 0)
         {
-            string modFolderRelative = modCtx.ModFolder[AppContext.BaseDirectory.Length..];
-            Console.WriteLine($" - No mods found under '{modFolderRelative}'!\n   Place some mods in the folder and re-run the patcher.");
-            Globals.PressAnyKey();
+            Console.WriteLine($"\n - No mods found under './{modContext.ModFolderRelative}'!\n   Place some mods in the folder and re-run the patcher.");
+            Console.WriteLine("\n   Refer to the GitHub readme for info on how to obtain mods.");
+            PrepareForExit();
             return;
         }
 
-        modCtx.ApplyMods();
-
-        Globals.PressAnyKey();
+        modContext.ApplyMods();
+        PrepareForExit();
     }
 
     /// <summary>
     /// Prints the loaded game's title and engine info to the console.
     /// </summary>
     /// <param name="ipa"></param>
-    private static void PrintGameString(IPA ipa)
+    private static void PrintIpaInfo(IPA ipa)
     {
-        Globals.ClearConsole();
         Console.WriteLine(Globals.Separator);
 
         string gameTitle = UnrealLib.Globals.GetString(ipa.Game, false);
-        string gameVersion = $"v{ipa.EngineVersion}, {ipa.EngineBuild}";
-        ConsoleColor color = ipa.IsLatestVersion ? ConsoleColor.Green : ConsoleColor.DarkYellow;
+        string gameVersion = $"v{ipa.PackageVersion}, {ipa.EngineVersion}";
+        
+        // Print the the IPA title in green if we've got the latest version of that particular game,
+        // otherwise, print it in yellow. A warning is also displayed during ModContext::ApplyMods()
+        var color = ipa.IsLatestVersion ? ConsoleColor.Green : ConsoleColor.DarkYellow;
 
-        // Print game title (left-hand side)
+        // Print the game's name on the left...
         Globals.PrintColor(gameTitle, color);
 
-        // Print game version info (right-hand side)
+        // ...and its version info on the right
         Console.SetCursorPosition(Globals.MaxStringLength - gameVersion.Length, Console.CursorTop);
         Globals.PrintColor($"{gameVersion}\n", color);
 
-        Console.WriteLine($"{Globals.Separator}\n");
+        Console.WriteLine(Globals.Separator);
+    }
+
+    /// <summary>
+    /// Deletes the temporary file cache directory and awaits final keypress on Windows machines.
+    /// </summary>
+    private static void PrepareForExit()
+    {
+        // Delete the cache directory we created at the start of the application
+        Directory.Delete(Globals.CachePath, true);
+
+        Globals.PressAnyKey();
     }
 }

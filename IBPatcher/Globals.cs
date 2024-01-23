@@ -1,9 +1,12 @@
-﻿namespace IBPatcher;
+﻿using System;
+using System.IO;
+
+namespace IBPatcher;
 
 public static class Globals
 {
     /// <summary>The name of the application, followed by version number.</summary>
-    public const string AppTitle = "IBPatcher v1.2.4";
+    public const string AppTitle = "IBPatcher v1.2.4";  // Don't forget to change this in app.manifest!
 
     /// <summary>Determines the maximum length of strings used in mod names and separators.</summary>
     public const int MaxStringLength = 65;
@@ -13,10 +16,12 @@ public static class Globals
 
     /// <summary>Unique path used to store intermediaries across the entire application lifetime.</summary>
     public static readonly string CachePath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-    public static readonly string PayloadPath = CachePath + "/Payload/";
 
     /// <summary>Prints the passed string to the console using the desired color.</summary>
-    /// <remarks>- Uses Console.Write()<br/>- Reverts Console color to previous value on finish</remarks>
+    /// <remarks>
+    /// - Uses Console.Write()<br/>
+    /// - Reverts Console color to previous value on finish
+    /// </remarks>
     public static void PrintColor(string content, ConsoleColor color)
     {
         var previous = Console.ForegroundColor;
@@ -36,10 +41,12 @@ public static class Globals
 #endif
     }
 
+    // Prints the "Press any key..." dialog and awaits a key press.
+    // This is not done on Unix systems as the Terminal behaves differently
     public static void PressAnyKey()
     {
 #if !UNIX
-        Console.Write(Locale.PressAnyKey);
+        Console.Write("\nPress any key to close...");
     #if !DEBUG
             Console.ReadKey();
     #endif
