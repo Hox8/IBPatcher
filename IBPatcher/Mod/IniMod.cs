@@ -1,19 +1,26 @@
-﻿using System.Globalization;
+﻿using System;
+using System.Globalization;
+using System.IO;
 using UnrealLib.Config;
 
 namespace IBPatcher.Mod;
 
 public static class IniMod
 {
-    public static ModBase ReadIniMod(string modPath, ModContext ctx)
+    public static ModBase Read(string modPath, ModContext ctx)
     {
         var mod = new ModBase(modPath, ModFormat.Ini, ctx.Game);
-        var ini = new Ini(modPath);
+        var ini = Ini.FromFile(modPath);
 
-        if (ini.HasDuplicateSections)
+        // Error if the ini contains duplicate sections or no sections at all
+        if (ini.Sections.Count == 0)
         {
-            mod.SetError(ModError.DuplicateSection);
-            mod.ErrorContext = ini.Context;
+            string formatted = $"./{ctx.ModFolderRelative}/{Path.GetFileName(modPath)}";
+            mod.SetError(ModError.Ini_Empty, formatted);
+        }
+        else if (ini.ErrorType is IniError.ContainsDuplicateSection)
+        {
+            mod.SetError(ModError.DuplicateSection, ini.ErrorContext);
         }
         else
         {
@@ -23,7 +30,7 @@ public static class IniMod
 
                 if (!section.GetValue("File", out string fileStr))
                 {
-                    mod.SetError(ModError.UnspecifiedFile, section);
+                    mod.SetError(ModError.UnspecifiedFile, section.Name);
                     break;
                 }
 
@@ -39,14 +46,14 @@ public static class IniMod
 
                 if (!section.GetValue("type", out string type))
                 {
-                    mod.SetError(ModError.UnspecifiedType, section);
+                    mod.SetError(ModError.UnspecifiedType, section.Name);
                     break;
                 }
 
                 var patch = new ModPatch { Type = EnumConverters.GetPatchType(type) };
                 if (patch.Type == PatchType.Unspecified)
                 {
-                    mod.SetError(ModError.InvalidType, section);
+                    mod.SetError(ModError.InvalidType, section.Name);
                     break;
                 }
 
@@ -63,7 +70,7 @@ public static class IniMod
                     if (!int.TryParse(sub[0].StartsWith("0x", StringComparison.OrdinalIgnoreCase) ?
                         sub[0][2..] : sub[0], NumberStyles.AllowHexSpecifier, null, out int result))
                     {
-                        mod.SetError(ModError.InvalidOffsetPrimary, section);
+                        mod.SetError(ModError.InvalidOffsetPrimary, section.Name);
                         break;
                     }
 
@@ -73,7 +80,7 @@ public static class IniMod
                     {
                         if (!int.TryParse(sub[i], null, out int tertiary))
                         {
-                            mod.SetError(ModError.InvalidOffsetTertiary, section);
+                            mod.SetError(ModError.InvalidOffsetTertiary, section.Name);
                             break;
                         }
 
@@ -87,7 +94,7 @@ public static class IniMod
                 }
                 else
                 {
-                    mod.SetError(ModError.UnspecifiedOffset, section);
+                    mod.SetError(ModError.UnspecifiedOffset, section.Name);
                     break;
                 }
 
@@ -99,13 +106,13 @@ public static class IniMod
                 {
                     if (patch.Type is not PatchType.Int32)
                     {
-                        mod.SetError(ModError.InappropriateSize, section);
+                        mod.SetError(ModError.InappropriateSize, section.Name);
                         break;
                     }
 
                     if (!int.TryParse(size, out int result))
                     {
-                        mod.SetError(ModError.InvalidSize, section);
+                        mod.SetError(ModError.InvalidSize, section.Name);
                         break;
                     }
 
@@ -124,13 +131,13 @@ public static class IniMod
                 // We want to parse the value immediately so we can reference the section name for errors
                 if (!section.GetValue("value", out string value))
                 {
-                    mod.SetError(ModError.UnspecifiedValue, section);
+                    mod.SetError(ModError.UnspecifiedValue, section.Name);
                     break;
                 }
 
                 if (!patch.TryParseValue(value))
                 {
-                    mod.SetError(ModError.InvalidValue, section);
+                    mod.SetError(ModError.InvalidValue, section.Name);
                     break;
                 }
 
@@ -142,7 +149,7 @@ public static class IniMod
                 {
                     if (!bool.TryParse(enable, out patch.Enabled))
                     {
-                        mod.SetError(ModError.InvalidEnabled, section);
+                        mod.SetError(ModError.InvalidEnabled, section.Name);
                         break;
                     }
                 }

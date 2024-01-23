@@ -1,33 +1,43 @@
-﻿using Ionic.Zip;
+﻿using System.IO;
 using UnrealLib.Config.Coalesced;
+using Zip.Core;
 
 namespace IBPatcher.Mod;
 
 public static class BinMod
 {
-    public static ModBase ReadBinMod(string modPath, ModContext ctx)
+    public static ModBase Read(string modPath, ModContext context)
     {
-        var mod = new ModBase(modPath, ModFormat.Bin, ctx.Game) { Name = Path.GetFileName(modPath) };
+        var mod = new ModBase(modPath, ModFormat.Bin, context.Game);
 
-        // Copy ipa-qualified path to the cached path
-        string ipaPath = ctx.QualifyPath(mod.Name)[1..];
-        string cachePath = Path.Combine(Globals.CachePath, ipaPath);
-        File.Copy(modPath, cachePath);
+        string fileName = Path.GetFileName(modPath);
+        string ipaPath = context.QualifyPath(fileName)[1..];
 
-        var coal = new Coalesced(cachePath, ctx.Game, false);
+        var coal = Coalesced.FromFile(modPath, context.Game);
 
-        // Translate UnrealArchive error to ModError
-        mod.SetError(coal.Error switch
+        // Check for Coalesced errors
+        if (coal.HasError)
         {
-            UnrealLib.UnrealArchiveError.UnexpectedGame => ModError.CoalescedUnexpectedGame,
-            UnrealLib.UnrealArchiveError.DecryptionFailed => ModError.CoalescedDecryptionFailed,
-            UnrealLib.UnrealArchiveError.ParseFailed => ModError.ArchiveLoadFailed,
-            UnrealLib.UnrealArchiveError.None => ModError.None
-        });
+            string modPathFormatted = $"./{context.ModFolderRelative}/{fileName}";
 
-        // Add to CachedArchives list. Use a dummy ZipEntry and indicate it should not be extracted normally.
-        // Link already-loaded Coalesced file and force Modified
-        ctx.ArchiveCache.Add(new CachedArchive(new ZipEntry { FileName = ipaPath }, FileType.Coalesced, false) { Archive = coal, Modified = true });
+            ModError error = coal.ErrorType switch
+            {
+                UnrealLib.ArchiveError.UnexpectedGame => ModError.CoalescedUnexpectedGame,
+                _ => ModError.CoalescedInvalid  // Consider any other errors to be an invalid file
+            };
+
+            mod.SetError(error, modPathFormatted);
+        }
+
+        // Copy to cached path
+        File.Copy(modPath, Path.Combine(Globals.CachePath, ipaPath));
+
+        // Add to cached archives so other mods don't pull a copy from the IPA
+
+        // Dummy ZipEntry to conform with existing systems. Won't be used
+        var entry = ZipEntry.CreateNew(null, ipaPath);
+
+        context.ArchiveCache.Add(new CachedArchive(entry, FileType.Coalesced, false) { Archive = coal, Modified = true });
 
         return mod;
     }

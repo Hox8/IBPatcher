@@ -1,11 +1,14 @@
-﻿using System.Text.Json;
+﻿using System.IO;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace IBPatcher.Mod;
 
 public static class JsonMod
 {
-    public static ModBase ReadJsonMod(string modPath, ModContext ctx)
+    // Reads a JSON object into the correspond JsonMod classes.
+    // See the comments at the bottom of this page for a thorough explanation.
+    public static ModBase Read(string modPath, ModContext ctx)
     {
         var mod = new ModBase(modPath, ModFormat.Json, ctx.Game);
         JsonModBase json;
@@ -34,24 +37,31 @@ public static class JsonMod
         if (json.Files is null) return mod;
         foreach (var jsonFile in json.Files)
         {
-            var modFile = mod.GetFile(jsonFile.Filename, ctx.QualifyPath(jsonFile.Filename), EnumConverters.GetFileType(jsonFile.Filetype));
+            var modFile = mod.GetFile(jsonFile.File, ctx.QualifyPath(jsonFile.File), EnumConverters.GetFileType(jsonFile.Type));
 
-            if (jsonFile.Filename is null)
+            if (jsonFile.File is null)
             {
-                mod.SetError(ModError.UnspecifiedFile, modFile);
+                mod.SetError(ModError.UnspecifiedFile, mod.GetErrorLocation(modFile));
                 return mod;
             }
 
-            if (jsonFile.Filetype is null)
+            if (jsonFile.Type is null)
             {
-                mod.SetError(ModError.UnspecifiedFileType, modFile);
+                mod.SetError(ModError.UnspecifiedType, mod.GetErrorLocation(modFile));
                 return mod;
             }
 
             if (jsonFile.Objects is null) return mod;
             foreach (var jsonObj in jsonFile.Objects)
             {
-                var modObj = modFile.GetObject(jsonObj.ObjectName ?? "");
+                // Only check if the key wasn't passed. A value of "" is fine; we'll forgo using an object (UPK only)
+                if (jsonObj.Object is null)
+                {
+                    mod.SetError(ModError.UnspecifiedObject);
+                    return mod;
+                }
+
+                var modObj = modFile.GetObject(jsonObj.Object);
 
                 if (jsonObj.Patches is null) return mod;
                 foreach (var jsonPatch in jsonObj.Patches)
@@ -67,7 +77,7 @@ public static class JsonMod
 
                     if (jsonPatch.Value is null)
                     {
-                        mod.SetError(ModError.UnspecifiedValue, modFile, modObj, modObj.Patches[^1]);
+                        mod.SetError(ModError.UnspecifiedValue, mod.GetErrorLocation(modFile, modObj, modObj.Patches[^1]));
                         return mod;
                     }
 
@@ -80,25 +90,26 @@ public static class JsonMod
         return mod;
     }
 
+    // Ugly hacky method to discern JsonException type from string message
     private static void ParseJsonError(JsonException e, ModBase mod)
     {
-        mod.ErrorContext = $"Line: {e.LineNumber + 1}";
+        string ctx = $"Line: {e.LineNumber + 1}";
 
         if (e.Message.Contains("is invalid after a value."))
         {
-            mod.SetError(ModError.JsonMissingComma);
+            mod.SetError(ModError.JsonMissingComma, ctx);
         }
         else if (e.Message.StartsWith("The JSON object contains a trailing comma"))
         {
-            mod.SetError(ModError.JsonTrailingComma);
+            mod.SetError(ModError.JsonTrailingComma, ctx);
         }
-        else if (e.InnerException.Message.StartsWith("Cannot get the value of a token type") == true)
+        else if (e.InnerException is not null && e.InnerException.Message.StartsWith("Cannot get the value of a token type") == true)
         {
-            mod.SetError(ModError.JsonBadCast);
+            mod.SetError(ModError.JsonBadCast, ctx);
         }
         else
         {
-            mod.SetError(ModError.JsonUnhandled);
+            mod.SetError(ModError.JsonUnhandled, ctx);
         }
     }
 }
@@ -107,9 +118,10 @@ public static class JsonMod
 [JsonSerializable(typeof(JsonModBase))]
 public partial class Ctx : JsonSerializerContext;
 
-public record JsonModPatch(string? Section, string? Type, int? Offset, JsonElement? Value, bool? Enabled);
-public record JsonModObject(string? ObjectName, JsonModPatch[] Patches);
-public record JsonModFile(string? Filename, string? Filetype, JsonModObject[] Objects);
+// These are dumber intermediate classes used exclusively by the JsonSerializer source generator.
+// The above code manually converts these classes to the equivalent Mod classes (ModBase, ModFile etc)
+// This is done to avoid generating heavy/bloated Json serializer methods.
+public record JsonModPatch(string? Section, string? Type, int? Offset, JsonElement? Value, bool? Enabled);  // 'sectionName' -> 'section'
+public record JsonModObject(string? Object, JsonModPatch[] Patches);    // 'objectName' -> 'object'
+public record JsonModFile(string? File, string? Type, JsonModObject[] Objects); // 'fileName' -> 'file', 'fileType' -> 'type'
 public record JsonModBase(string? Name, string? Game, JsonModFile[] Files);
-
-
