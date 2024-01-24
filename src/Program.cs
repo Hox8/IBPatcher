@@ -4,27 +4,6 @@ using System.Text;
 
 namespace IBPatcher;
 
-/*
- * TODOS
- * 
- * 5.
- * Ini and json keys should be named consistently!
- * 
- * 0.
- * Rewrite of Section--forgot to re-add section clearing and special char support. Add this back!
- * 
- * 1.
- * Finalize conflict handling (two replace patches targeting the same UObject should cause an error)
- * 
- * 2.
- * Error messages are boring and vague. Do something about this.
- * 
- * 4. (design philosophy, low priority)
- * UnrealArchive operations should probably be done through a middle man; mods should not have direct references to UPKs (see ModFile's Archive field).
- * Expand/rework CachedArchives to support this. Could also make it easier to handle conflicts and other usage statistics.
- * 
- */
-
 internal static class Program
 {
     internal static void Main(string[] args)
@@ -37,17 +16,15 @@ internal static class Program
         // Terminal "fluff" is often printed at the top of the window which we'll get rid of here
         Globals.ClearConsole();
 
-        // Print application info. This is only seen if no arguments were passed or the IPA failed
-        Console.WriteLine(Globals.Separator);
-        Globals.PrintColor(Globals.AppTitle, ConsoleColor.Green);
-        Console.WriteLine($"\nCopyright © 2023 Hox, GPL v3.0\n{Globals.Separator}\n");
+#if DEBUG
+        args = [@"C:\Users\User 1\Downloads\Infinity Blade II v1.3.5 (64-bit & 32-bit).ipa"];
+#endif
 
         // Print instructions if no arguments were passed
         if (args.Length != 1)
         {
-#if DEBUG
-            args = [@"C:\Users\User 1\Downloads\Infinity Blade II v1.3.5 (64-bit & 32-bit).ipa"];
-#elif UNIX
+            PrintApplicationInfo();
+#if UNIX
             // Unix cannot drag-and-drop onto executables, so prompt to drag-and-drop into the active Terminal window instead
             Console.Write("Drag an IPA onto this window to begin: ");
 
@@ -67,12 +44,12 @@ internal static class Program
 
         if (ipa.HasError)
         {
+            PrintApplicationInfo();
             Globals.PrintColor($" - {ipa.GetErrorString()}\n", ConsoleColor.Red);
             PrepareForExit();
             return;
         }
 
-        // Clear out the earlier application info and print IPA info instead
         Globals.ClearConsole();
         PrintIpaInfo(ipa);
 
@@ -126,5 +103,15 @@ internal static class Program
         Directory.Delete(Globals.CachePath, true);
 
         Globals.PressAnyKey();
+    }
+
+    /// <summary>
+    /// Prints application info to the console.
+    /// </summary>
+    private static void PrintApplicationInfo()
+    {
+        Console.WriteLine(Globals.Separator);
+        Globals.PrintColor(Globals.AppTitle, ConsoleColor.Green);
+        Console.WriteLine($"\nCopyright © 2024 Hox, GPL v3.0\n{Globals.Separator}\n");
     }
 }
