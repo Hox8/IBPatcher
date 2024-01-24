@@ -18,15 +18,13 @@ public static class BinMod
         // Check for Coalesced errors
         if (coal.HasError)
         {
-            string modPathFormatted = $"./{context.ModFolderRelative}/{fileName}";
-
             ModError error = coal.ErrorType switch
             {
                 UnrealLib.ArchiveError.UnexpectedGame => ModError.Coalesced_WrongGame,
                 _ => ModError.Coalesced_InvalidFile  // Consider any other errors to be an invalid file
             };
 
-            mod.SetError(error, modPathFormatted);
+            mod.SetError(error);
         }
 
         // Copy to cached path
