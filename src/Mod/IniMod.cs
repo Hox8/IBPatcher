@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Globalization;
-using System.IO;
 using UnrealLib.Config;
 
 namespace IBPatcher.Mod;
@@ -66,7 +65,7 @@ public static class IniMod
 
                     // Parse primary offset.
                     // This can be in either base 10 or base 16.
-                    if (!int.TryParse(sub[0].StartsWith("0x", StringComparison.OrdinalIgnoreCase) ?
+                    if (sub.Length == 0 || !int.TryParse(sub[0].StartsWith("0x", StringComparison.OrdinalIgnoreCase) ?
                         sub[0][2..] : sub[0], NumberStyles.AllowHexSpecifier, null, out int result))
                     {
                         mod.SetError(ModError.Generic_BadOffset, section.Name);
@@ -109,7 +108,7 @@ public static class IniMod
                         break;
                     }
 
-                    if (!int.TryParse(size, out int result))
+                    if (!int.TryParse(size, out int result) || (result != 1 && result != 4))
                     {
                         mod.SetError(ModError.Ini_BadSize, section.Name);
                         break;
