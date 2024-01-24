@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using UnrealLib;
@@ -14,60 +13,70 @@ namespace IBPatcher.Mod;
 
 #region Enums
 
-public enum ModError : byte // @TODO organize this. See the GetString() method at the bottom of this file
+public enum ModError : byte
 {
-    None,
+    None = 0,
 
-    // Json syntax
-    JsonBadCast,
-    JsonMissingComma,
-    JsonTrailingComma,
-    JsonUnhandled,
+    // .JSON
+    Json_HasUnexpectedValue,
+    Json_HasMissingComma,
+    Json_HasTrailingComma,
+    Json_UnhandledException,
+    
+    // .INI
+    Ini_HasNoSections,
+    Ini_HasDuplicateSections,
+    Ini_UnexpectedSize,
+    Ini_BadSize,
 
-    // Json?
-    InvalidFileType,
-    InvalidGame,
-    UnspecifiedGame,
-    GameMismatch,
-    EmptyFiles,
-    EmptyObjects,
-    // InvalidFile,
-    FileNotFound,
-    UnspecifiedFileType,
-    ExportNotFound,
-    IniNotFound,
-    UnspecifiedObject,
-    EmptyPatches,
-    InappropriateSection,
-    // SectionNotFound,
-    InappropriatePatchType,
-    UnspecifiedObjectReplace,
-    InvalidPatchType,
-    InappropriateOffsetCoalesced,
-    InappropriateOffsetReplace,
-    InvalidOffset,
-    UnspecifiedOffset,
-    UnspecifiedValue,
-    InvalidValue,
-    NonAsciiUpkString,
+    // .BIN
+    Coalesced_InvalidFile,
+    Coalesced_WrongGame,
 
-    // Ini
-    DuplicateSection,
-    UnspecifiedFile,
-    UnspecifiedType,
-    InvalidOffsetPrimary,
-    InvalidOffsetTertiary,
-    InvalidType,
-    InappropriateSize,
-    InvalidSize,
-    InvalidEnabled,
-    Ini_Empty,
+    // Game
+    Generic_UnspecifiedGame,
+    Generic_BadGame,
+    Generic_WrongGame,
 
-    // Coalesced
-    CoalescedInvalid,
-    CoalescedUnexpectedGame,
-    CoalescedDecryptionFailed,
-    ArchiveLoadFailed
+    // File
+    Generic_UnspecifiedFile,
+    Generic_FileNotFound,
+    Generic_FileFailedLoad,
+
+    // FileType
+    Generic_UnspecifiedFileType,
+    Generic_BadFileType,
+
+    // Patch type
+    Generic_UnspecifiedPatchType,
+    Generic_UnexpectedPatchType,
+    Generic_BadPatchType,
+
+    // Patch offset
+    Generic_UnspecifiedOffset,
+    Generic_UnexpectedOffset_Coalesced,
+    Generic_UnexpectedOffset_Upk,
+    Generic_BadOffset,
+
+    // Patch value
+    Generic_UnspecifiedValue,
+    Generic_BadValue,
+    Generic_BadValueString,
+
+    // Patch enabled
+    Generic_BadEnabled,
+
+    // Arrays
+    Generic_EmptyFiles,
+    Generic_EmptyObjects,
+    Generic_EmptyPatches,
+
+    // Linking stage
+    Generic_UnspecifiedObject,
+    Generic_ExportNotFound,
+    Generic_IniNotFound,
+    Generic_UnexpectedSection,
+    Generic_ReplaceRequiresObject,
 }
 
 public enum ModFormat : byte
@@ -303,67 +312,64 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
         return sb.ToString();
     }
 
-    // Nameof is pretty ugly here.
     public override string GetErrorString() => ErrorType switch
     {
-        // Json
-        ModError.JsonBadCast => "JSON syntax: unexpected value type",
-        ModError.JsonMissingComma => "JSON syntax: missing comma",
-        ModError.JsonTrailingComma => "JSON syntax: trailing comma",
-        ModError.JsonUnhandled => "JSON syntax: unhandled exception",
+        ModError.None => "Mod does not contain an error.",
 
-        // Ini
-        ModError.DuplicateSection => "Contains a duplicate section",
-        ModError.UnspecifiedType => "Type was not specified",
-        ModError.InvalidOffsetPrimary => "Primary offset was invalid",
-        ModError.InvalidOffsetTertiary => "Tertiary offset was invalid",
-        ModError.InvalidType => "Type was invalid",
-        ModError.InappropriateSize => "Size can only be specified for the integer type",
-        ModError.InvalidSize => "Size must equal either '1' or '4'",
-        ModError.InvalidEnabled => "Invalid 'Enabled' value",
-        ModError.Ini_Empty => "Ini does not contain any sections",
+        // Format-specific
 
-        // ModBase
-        ModError.UnspecifiedGame => "Game was not specified",
-        ModError.InvalidGame => "Game does not correspond to a valid Game",
-        ModError.GameMismatch => "Game does not match the currently-loaded IPA",
+        ModError.Json_HasUnexpectedValue => "Unexpected value type is present in the JSON mod file.",
+        ModError.Json_HasMissingComma => "Comma is missing from the JSON mod file.",
+        ModError.Json_HasTrailingComma => "Trailing comma is present in the JSON mod file.",
+        ModError.Json_UnhandledException => "Unhandled exception occurred while parsing the JSON mod file.",
 
-        // Generic
-        ModError.EmptyFiles => "Files array was not specified or empty",
-        ModError.EmptyObjects => "Objects array was not specified or empty",
-        ModError.EmptyPatches => "Patches array was not specified or empty",
+        ModError.Ini_HasNoSections => "No sections were found within the INI mod file.",
+        ModError.Ini_HasDuplicateSections => "Duplicate sections were found within the INI mod file.",
+        ModError.Ini_UnexpectedSize => "'Size' can only be specified for the integer type.",
+        ModError.Ini_BadSize => "'Size' must equal either '1' or '4'.",
 
-        // ModFile
-        ModError.UnspecifiedFile => $"{nameof(ModFile.FileName)} was not specified",
-        // ModError.InvalidFile => $"{nameof(ModFile.FileName)} was not valid",
-        ModError.FileNotFound => $"File was not found within the currently-loaded IPA",
-        ModError.UnspecifiedFileType => $"{nameof(ModFile.FileType)} was not specified'",
-        ModError.InvalidFileType => $"{nameof(ModFile.FileType)} was not set to a valid file type",
+        ModError.Coalesced_InvalidFile => "Not a valid Coalesced file.",
+        ModError.Coalesced_WrongGame => "Coalesced file does not match the currently-loaded game.",
 
-        // ModObject
-        ModError.ExportNotFound => "Export object was not found within the UPK file",
-        ModError.IniNotFound => "Ini file was not found within the Coalesced file",
-        ModError.UnspecifiedObject => $"{nameof(ModObject.ObjectName)} was not specified",
+        // Generic - mod format
 
-        // ModPatch
-        ModError.InappropriateSection => $"{nameof(ModPatch._sectionReference)} cannot be specified for UPK patches",
-        // ModError.SectionNotFound => $"{nameof(ModPatch._sectionReference)} was not found within the Ini file",
-        ModError.InappropriatePatchType => $"{nameof(ModPatch.Type)} cannot be specified for Coalesced patches",
-        ModError.UnspecifiedObjectReplace => $"{nameof(ModObject.ObjectName)} in the parent ModObject must be specified in order to use Replace type",
-        ModError.InvalidPatchType => $"{nameof(ModPatch.Type)} does not correspond to a valid patch type",
-        ModError.InappropriateOffsetCoalesced => $"{nameof(ModPatch.Offset)} cannot be specified for Coalesced patches",
-        ModError.InappropriateOffsetReplace => $"{nameof(ModPatch.Offset)} cannot be specified for replace type patches",
-        ModError.InvalidOffset => $"{nameof(ModPatch.Offset)} must be more than or equal to 0",
-        ModError.UnspecifiedOffset => $"{nameof(ModPatch.Offset)} was not specified",
-        ModError.UnspecifiedValue => $"{nameof(ModPatch.Value)} was not specified",
-        ModError.InvalidValue => $"{nameof(ModPatch.Value)} could not be parsed",
-        ModError.NonAsciiUpkString => $"{nameof(ModPatch.Value)} contains non-ASCII characters. UPK files only support ASCII encoding",
+        ModError.Generic_UnspecifiedGame => "'Game' was not specified.",
+        ModError.Generic_BadGame => "Game does not correspond to any valid game.",
+        ModError.Generic_WrongGame => "Mod does not target the currently loaded game.",
 
-        // Coalesced
-        ModError.CoalescedUnexpectedGame => "Coalesced file does not match the loaded game",
-        ModError.CoalescedDecryptionFailed => "Failed to decrypt the Coalesced file",
-        ModError.ArchiveLoadFailed => "Archive failed to load",
-        ModError.CoalescedInvalid => "Not a valid Coalesced file"
+        ModError.Generic_UnspecifiedFile => "'File' was not specified.",
+        ModError.Generic_FileNotFound => "File was not found within the currently-loaded IPA.",
+        ModError.Generic_FileFailedLoad => "Failed to parse file.",
+
+        ModError.Generic_UnspecifiedFileType => $"'Type' was not specified.",
+        ModError.Generic_BadFileType => "'Type' does not correspond to any valid file type.",
+
+        ModError.Generic_UnspecifiedPatchType => "'Type' was not specified.",
+        ModError.Generic_UnexpectedPatchType => "'Type' cannot be specified for Coalesced-type patches.",
+        ModError.Generic_BadPatchType => "'Type' does not correspond to any valid patch type.",
+
+        ModError.Generic_UnspecifiedOffset => "'Offset' was not specified.",
+        ModError.Generic_UnexpectedOffset_Coalesced => "'Offset' cannot be specified for Coalesced-type patches.",
+        ModError.Generic_UnexpectedOffset_Upk => "'Offset' cannot be specified for replace-type patches.",
+        ModError.Generic_BadOffset => "'Offset' recieved a bad value.",
+
+        ModError.Generic_UnspecifiedValue => "'Value' was not specified.",
+        ModError.Generic_BadValue => "'Value' could not be parsed.",
+        ModError.Generic_BadValueString => "Only ASCII characters are allowed for UPK string values.",
+
+        ModError.Generic_BadEnabled => "'Enabled' recieved a bad value.",
+
+        ModError.Generic_EmptyFiles => "Mod contains no files.",
+        ModError.Generic_EmptyObjects => "File contains no objects.",
+        ModError.Generic_EmptyPatches => "Object contains no patches.",
+
+        // Generic - linking
+
+        ModError.Generic_UnspecifiedObject => "'Object' was not specified",
+        ModError.Generic_ExportNotFound => "Export object was not found within the UPK file",
+        ModError.Generic_IniNotFound => "Ini file was not found within the Coalesced file",
+        ModError.Generic_UnexpectedSection => "'Section' cannot be specified for UPK patches",
+        ModError.Generic_ReplaceRequiresObject => "'Object' in the parent ModObject must be specified in order to use Replace type",
     };
 
     #endregion
@@ -411,13 +417,13 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
         {
             if (Game is Game.Unknown)
             {
-                SetError(ModError.InvalidGame);
+                SetError(ModError.Generic_BadGame);
                 return;
             }
 
             if (Game != context.Game)
             {
-                SetError(ModError.GameMismatch);
+                SetError(ModError.Generic_WrongGame);
                 return;
             }
         }
@@ -428,7 +434,7 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
 
         if (Files is null || Files.Count == 0)
         {
-            SetError(ModError.EmptyFiles);
+            SetError(ModError.Generic_EmptyFiles);
             return;
         }
 
@@ -466,14 +472,14 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
 
             if (string.IsNullOrEmpty(file.FileName))
             {
-                SetError(ModError.UnspecifiedFile, GetErrorLocation(file));
+                SetError(ModError.Generic_UnspecifiedFile, GetErrorLocation(file));
                 return;
             }
 
             // Link and register UnrealArchive so it so it can be extracted later
             if (!context.TryGetCachedArchive(file, out file.Archive))
             {
-                SetError(ModError.FileNotFound, GetErrorLocation(file));
+                SetError(ModError.Generic_FileNotFound, GetErrorLocation(file));
                 return;
             }
 
@@ -483,7 +489,7 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
 
             if (file.FileType is FileType.Unspecified)
             {
-                SetError(ModError.InvalidFileType, GetErrorLocation(file));
+                SetError(ModError.Generic_BadFileType, GetErrorLocation(file));
                 return;
             }
 
@@ -491,7 +497,7 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
 
             if (file.Objects is null || file.Objects.Count == 0)
             {
-                SetError(ModError.EmptyObjects);
+                SetError(ModError.Generic_EmptyObjects);
                 return;
             }
 
@@ -515,7 +521,7 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
 
                 if (obj.Patches is null || obj.Patches.Count == 0)
                 {
-                    SetError(ModError.EmptyPatches, GetErrorLocation(file, obj));
+                    SetError(ModError.Generic_EmptyPatches, GetErrorLocation(file, obj));
                     return;
                 }
 
@@ -530,13 +536,13 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
                     {
                         if (!patch.TryParseValue(patch.Value.String))
                         {
-                            SetError(ModError.InvalidValue, GetErrorLocation(file, obj, patch));
+                            SetError(ModError.Generic_BadValue, GetErrorLocation(file, obj, patch));
                             return;
                         }
 
                         if (file.FileType is FileType.Upk && patch.Type is PatchType.String && !Ascii.IsValid(patch.Value.String))
                         {
-                            SetError(ModError.NonAsciiUpkString, GetErrorLocation(file, obj, patch));
+                            SetError(ModError.Generic_BadValueString, GetErrorLocation(file, obj, patch));
                             return;
                         }
                     }
@@ -551,13 +557,13 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
                     {
                         if (file.FileType is FileType.Coalesced)
                         {
-                            SetError(ModError.InappropriatePatchType, GetErrorLocation(file, obj, patch));
+                            SetError(ModError.Generic_UnexpectedPatchType, GetErrorLocation(file, obj, patch));
                             return;
                         }
                     }
                     else if (file.FileType is FileType.Upk)
                     {
-                        SetError(ModError.InvalidPatchType, GetErrorLocation(file, obj, patch));
+                        SetError(ModError.Generic_BadPatchType, GetErrorLocation(file, obj, patch));
                         return;
                     }
 
@@ -569,25 +575,25 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
                     {
                         if (file.FileType is FileType.Coalesced)
                         {
-                            SetError(ModError.InappropriateOffsetCoalesced, GetErrorLocation(file, obj, patch));
+                            SetError(ModError.Generic_UnexpectedOffset_Coalesced, GetErrorLocation(file, obj, patch));
                             return;
                         }
 
                         if (patch.Type is PatchType.Replace)
                         {
-                            SetError(ModError.InappropriateOffsetReplace, GetErrorLocation(file, obj, patch));
+                            SetError(ModError.Generic_UnexpectedOffset_Upk, GetErrorLocation(file, obj, patch));
                             return;
                         }
 
                         if (patch.Offset < 0)
                         {
-                            SetError(ModError.InvalidOffset, GetErrorLocation(file, obj, patch));
+                            SetError(ModError.Generic_BadOffset, GetErrorLocation(file, obj, patch));
                             return;
                         }
                     }
                     else if (patch.Type is not (PatchType.Unspecified or PatchType.Replace))
                     {
-                        SetError(ModError.UnspecifiedOffset, GetErrorLocation(file, obj, patch));
+                        SetError(ModError.Generic_UnspecifiedOffset, GetErrorLocation(file, obj, patch));
                         return;
                     }
 
@@ -610,7 +616,7 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
         {
             if (file.Archive.HasError)
             {
-                SetError(ModError.ArchiveLoadFailed, GetErrorLocation(file));
+                SetError(ModError.Generic_FileFailedLoad, GetErrorLocation(file));
                 return false;
             }
 
@@ -624,7 +630,7 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
                     {
                         if (file.Archive.Upk.FindObject(obj.ObjectName) is not FObjectExport export)
                         {
-                            SetError(ModError.ExportNotFound, GetErrorLocation(file, obj));
+                            SetError(ModError.Generic_ExportNotFound, GetErrorLocation(file, obj));
                             return false;
                         }
 
@@ -633,9 +639,15 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
                 }
                 else
                 {
+                    if (string.IsNullOrEmpty(obj.ObjectName))
+                    {
+                        SetError(ModError.Generic_UnspecifiedObject, GetErrorLocation(file, obj));
+                        return false;
+                    }
+
                     if (!file.Archive.Coalesced.TryGetIni(obj.ObjectName, out obj.Ini))
                     {
-                        SetError(ModError.IniNotFound, GetErrorLocation(file, obj));
+                        SetError(ModError.Generic_IniNotFound, GetErrorLocation(file, obj));
                         return false;
                     }
                 }
@@ -650,7 +662,7 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
                     {
                         if (file.FileType is FileType.Upk)
                         {
-                            SetError(ModError.InappropriateSection, GetErrorLocation(file, obj, patch));
+                            SetError(ModError.Generic_UnexpectedSection, GetErrorLocation(file, obj, patch));
                             return false;
                         }
 
@@ -668,7 +680,7 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
                     {
                         if (file.FileType is FileType.Coalesced)
                         {
-                            SetError(ModError.UnspecifiedFile, GetErrorLocation(file, obj, patch));
+                            SetError(ModError.Generic_UnspecifiedFile, GetErrorLocation(file, obj, patch));
                             return false;
                         }
                     }
@@ -679,7 +691,7 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
 
                     if (patch.Type is PatchType.Replace && obj.Export is null)
                     {
-                        SetError(ModError.UnspecifiedObjectReplace, GetErrorLocation(file, obj, patch));
+                        SetError(ModError.Generic_ReplaceRequiresObject, GetErrorLocation(file, obj, patch));
                         return false;
                     }
 

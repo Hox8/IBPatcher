@@ -22,8 +22,8 @@ public static class BinMod
 
             ModError error = coal.ErrorType switch
             {
-                UnrealLib.ArchiveError.UnexpectedGame => ModError.CoalescedUnexpectedGame,
-                _ => ModError.CoalescedInvalid  // Consider any other errors to be an invalid file
+                UnrealLib.ArchiveError.UnexpectedGame => ModError.Coalesced_WrongGame,
+                _ => ModError.Coalesced_InvalidFile  // Consider any other errors to be an invalid file
             };
 
             mod.SetError(error, modPathFormatted);

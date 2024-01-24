@@ -13,14 +13,16 @@ public static class JsonMod
         var mod = new ModBase(modPath, ModFormat.Json, ctx.Game);
         JsonModBase json;
 
+        byte[] utf8Bytes = File.ReadAllBytes(modPath);
+
         try
         { 
-            json = JsonSerializer.Deserialize(File.ReadAllText(modPath), Ctx.Default.JsonModBase);
+            json = JsonSerializer.Deserialize(utf8Bytes, Ctx.Default.JsonModBase);
         }
         catch (JsonException e)
         {
-            mod.Name = Path.GetFileName(modPath);
             ParseJsonError(e, mod);
+
             return mod;
         }
 
@@ -28,39 +30,34 @@ public static class JsonMod
 
         if (json.Game is null)
         {
-            mod.SetError(ModError.UnspecifiedGame);
+            mod.SetError(ModError.Generic_UnspecifiedGame);
             return mod;
         }
 
         mod.Game = EnumConverters.GetGame(json.Game);
 
         if (json.Files is null) return mod;
-        foreach (var jsonFile in json.Files)
+        for (int i = 0; i < json.Files.Length; i++)
         {
-            var modFile = mod.GetFile(jsonFile.File, ctx.QualifyPath(jsonFile.File), EnumConverters.GetFileType(jsonFile.Type));
+            var jsonFile = json.Files[i];
 
-            if (jsonFile.File is null)
+            if (string.IsNullOrWhiteSpace(jsonFile.File))
             {
-                mod.SetError(ModError.UnspecifiedFile, mod.GetErrorLocation(modFile));
+                mod.SetError(ModError.Generic_UnspecifiedFile, $"File: {i}");
                 return mod;
             }
 
-            if (jsonFile.Type is null)
+            var modFile = mod.GetFile(jsonFile.File, ctx.QualifyPath(jsonFile.File), EnumConverters.GetFileType(jsonFile.Type));
+
+            if (string.IsNullOrWhiteSpace(jsonFile.Type))
             {
-                mod.SetError(ModError.UnspecifiedType, mod.GetErrorLocation(modFile));
+                mod.SetError(ModError.Generic_UnspecifiedFileType, mod.GetErrorLocation(modFile));
                 return mod;
             }
 
             if (jsonFile.Objects is null) return mod;
             foreach (var jsonObj in jsonFile.Objects)
             {
-                // Only check if the key wasn't passed. A value of "" is fine; we'll forgo using an object (UPK only)
-                if (jsonObj.Object is null)
-                {
-                    mod.SetError(ModError.UnspecifiedObject);
-                    return mod;
-                }
-
                 var modObj = modFile.GetObject(jsonObj.Object);
 
                 if (jsonObj.Patches is null) return mod;
@@ -77,7 +74,7 @@ public static class JsonMod
 
                     if (jsonPatch.Value is null)
                     {
-                        mod.SetError(ModError.UnspecifiedValue, mod.GetErrorLocation(modFile, modObj, modObj.Patches[^1]));
+                        mod.SetError(ModError.Generic_UnspecifiedValue, mod.GetErrorLocation(modFile, modObj, modObj.Patches[^1]));
                         return mod;
                     }
 
@@ -93,23 +90,21 @@ public static class JsonMod
     // Ugly hacky method to discern JsonException type from string message
     private static void ParseJsonError(JsonException e, ModBase mod)
     {
-        string ctx = $"Line: {e.LineNumber + 1}";
-
         if (e.Message.Contains("is invalid after a value."))
         {
-            mod.SetError(ModError.JsonMissingComma, ctx);
+            mod.SetError(ModError.Json_HasMissingComma, $"Line: {e.LineNumber}");
         }
         else if (e.Message.StartsWith("The JSON object contains a trailing comma"))
         {
-            mod.SetError(ModError.JsonTrailingComma, ctx);
+            mod.SetError(ModError.Json_HasTrailingComma, $"Line: {e.LineNumber}");
         }
-        else if (e.InnerException is not null && e.InnerException.Message.StartsWith("Cannot get the value of a token type") == true)
+        else if (e.Message.StartsWith("The JSON value could not be converted"))
         {
-            mod.SetError(ModError.JsonBadCast, ctx);
+            mod.SetError(ModError.Json_HasUnexpectedValue, $"Line: {e.LineNumber + 1}");
         }
         else
         {
-            mod.SetError(ModError.JsonUnhandled, ctx);
+            mod.SetError(ModError.Json_UnhandledException, $"Line: {e.LineNumber}");
         }
     }
 }
