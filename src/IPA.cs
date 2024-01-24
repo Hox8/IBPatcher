@@ -153,9 +153,9 @@ public class IPA : ErrorHelper<IpaError>
     /// </summary>
     /// <param name="path">The path to expand; e.g. "SwordGame.xxx", "../Binaries/Commands.txt".</param>
     /// <remarks>Relative paths originate from the IPA's CookedIPhone folder.</remarks>
-    public string QualifyPath(string? path)
+    public string QualifyPath(string path)
     {
-        if (string.IsNullOrWhiteSpace(path)) return "";
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
         int relativeSegmentCount = 0;
         Span<char> chars = path.ToCharArray();

@@ -447,7 +447,6 @@ public class ModContext : ErrorHelper<ModContextError>
                 {
                     if (file.FileType is FileType.Upk)
                     {
-                        // @TODO are these supposed to be using Archive.Name or Archive.FullName?
                         if (obj.Export is not null)
                         {
                             exports.TryAdd(obj.Export, new ConflictHelper($"{file.Archive.Archive.Name}, {obj.Export}"));
