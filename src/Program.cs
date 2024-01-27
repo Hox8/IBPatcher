@@ -31,6 +31,7 @@ internal static class Program
             // Trim leading/trailing whitespace, quotation chars, and any escaped whitespace
             args = [Console.ReadLine()?.Trim().Trim('\"').Replace("\\", "") ?? ""];
             Console.WriteLine();
+            Globals.ClearConsole();
 #else
             // Do not allow the above Unix method on Windows. Tell user to drag-and-drop instead
             Console.WriteLine("Start the patcher by drag-and-dropping an IPA onto the executable.");
@@ -50,7 +51,7 @@ internal static class Program
             return;
         }
 
-        Globals.ClearConsole();
+        // Print game title + version info
         PrintIpaInfo(ipa);
 
         var modContext = new ModContext(ipa);
