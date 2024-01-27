@@ -1,122 +1,179 @@
-﻿using System.IO;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.IO;
+using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace IBPatcher.Mod;
 
 public static class JsonMod
 {
-    // Reads a JSON object into the correspond JsonMod classes.
-    // See the comments at the bottom of this page for a thorough explanation.
-    public static ModBase Read(string modPath, ModContext ctx)
-    {
-        var mod = new ModBase(modPath, ModFormat.Json, ctx.Game);
-        JsonModBase json;
+    private const string RequiresArray = "REQUIRES_ARRAY";
 
-        byte[] utf8Bytes = File.ReadAllBytes(modPath);
+    // Microsoft does not expose this as an accessible (readonly) property, so we're doing it ourselves here.
+    [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_lineNumber")]
+    private static extern ref long GetLineNumber(in Utf8JsonReader reader);
+
+    [DoesNotReturn]
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void Throw(string? message = null) => throw new Exception(message);
+
+    public static ModBase Read(string path, ModContext context)
+    {
+        var mod = new ModBase(path, ModFormat.Json);
+
+        ReadOnlySpan<byte> bytes = File.ReadAllBytes(path);
+        var reader = new Utf8JsonReader(bytes, new JsonReaderOptions() { CommentHandling = JsonCommentHandling.Skip });
 
         try
-        { 
-            json = JsonSerializer.Deserialize(utf8Bytes, Ctx.Default.JsonModBase);
-        }
-        catch (JsonException e)
         {
-            ParseJsonError(e, mod);
-
-            return mod;
-        }
-
-        mod.Name = string.IsNullOrWhiteSpace(json.Name) ? Path.GetFileName(modPath) : json.Name;
-
-        if (json.Game is null)
-        {
-            mod.SetError(ModError.Generic_UnspecifiedGame);
-            return mod;
-        }
-
-        mod.Game = EnumConverters.GetGame(json.Game);
-
-        if (json.Files is null) return mod;
-        for (int i = 0; i < json.Files.Length; i++)
-        {
-            var jsonFile = json.Files[i];
-
-            if (string.IsNullOrWhiteSpace(jsonFile.File))
+            while (reader.Read())
             {
-                mod.SetError(ModError.Generic_UnspecifiedFile, $"File: {i}");
-                return mod;
-            }
-
-            var modFile = mod.GetFile(jsonFile.File, ctx.QualifyPath(jsonFile.File), EnumConverters.GetFileType(jsonFile.Type));
-
-            if (string.IsNullOrWhiteSpace(jsonFile.Type))
-            {
-                mod.SetError(ModError.Generic_UnspecifiedFileType, mod.GetErrorLocation(modFile));
-                return mod;
-            }
-
-            if (jsonFile.Objects is null) return mod;
-            foreach (var jsonObj in jsonFile.Objects)
-            {
-                var modObj = modFile.GetObject(jsonObj.Object);
-
-                if (jsonObj.Patches is null) return mod;
-                foreach (var jsonPatch in jsonObj.Patches)
+                if (reader.TokenType is JsonTokenType.PropertyName)
                 {
-                    modObj.Patches.Add(new ModPatch
-                    {
-                        Enabled = jsonPatch.Enabled ?? true,
-                        Value = new ModPatchValue(),
-                        SectionName = jsonPatch.Section,
-                        Type = EnumConverters.GetPatchType(jsonPatch.Type),
-                        Offset = jsonPatch.Offset
-                    });
+                    // Read in the key and advance reader
+                    string propertyName = reader.GetString();
+                    reader.Read();
 
-                    if (jsonPatch.Value is null)
-                    {
-                        mod.SetError(ModError.Generic_UnspecifiedValue, mod.GetErrorLocation(modFile, modObj, modObj.Patches[^1]));
-                        return mod;
-                    }
+                    ParsePropertyValue(mod, propertyName, ref reader, context);
+                }
+                else if (reader.TokenType is JsonTokenType.StartObject)
+                {
+                    // Add new ModFile
+                    if (reader.CurrentDepth == 2) mod.Files.Add(new ModFile());
 
-                    // A little hacky. We'll reference this when loading the mod "for real" during ModBase::Setup()
-                    modObj.Patches[^1].Value.String = jsonPatch.Value.ToString();
+                    // Add new ModObject
+                    else if (reader.CurrentDepth == 4) mod.Files[^1].Objects.Add(new ModObject());
+
+                    // Add new ModPatch
+                    else if (reader.CurrentDepth == 6) mod.Files[^1].Objects[^1].Patches.Add(new ModPatch());
                 }
             }
+        }
+        catch (Exception e)
+        {
+            SetJsonModError(e, mod, in reader);
         }
 
         return mod;
     }
 
     // Ugly hacky method to discern JsonException type from string message
-    private static void ParseJsonError(JsonException e, ModBase mod)
+    private static void SetJsonModError(Exception e, ModBase mod, in Utf8JsonReader reader)
     {
-        if (e.Message.Contains("is invalid after a value."))
+        long lineNumber = GetLineNumber(in reader);
+
+        if (e.Message.StartsWith("Cannot get the value of a token type"))
         {
-            mod.SetError(ModError.Json_HasMissingComma, $"Line: {e.LineNumber}");
+            mod.SetError(ModError.Json_HasUnexpectedValueType, $"Line: {lineNumber + 1}");
         }
-        else if (e.Message.StartsWith("The JSON object contains a trailing comma"))
+        else if (e.Message.Contains("is invalid after a value."))
         {
-            mod.SetError(ModError.Json_HasTrailingComma, $"Line: {e.LineNumber}");
+            mod.SetError(ModError.Json_HasMissingComma, $"Line: {lineNumber}");
         }
-        else if (e.Message.StartsWith("The JSON value could not be converted"))
+        else if (e.Message.Contains("contains a trailing"))
         {
-            mod.SetError(ModError.Json_HasUnexpectedValue, $"Line: {e.LineNumber + 1}");
+            mod.SetError(ModError.Json_HasTrailingComma, $"Line: {lineNumber}");
+        }
+        else if (e.Message.Contains("is an invalid "))
+        {
+            mod.SetError(ModError.Json_HasBadValue, $"Line: {lineNumber + 1}");
+        }
+        else if (e.Message == RequiresArray)
+        {
+            mod.SetError(ModError.Json_HasUnexpectedValueType, $"Line: {lineNumber + 1}");
         }
         else
         {
-            mod.SetError(ModError.Json_UnhandledException, $"Line: {e.LineNumber}");
+            mod.SetError(ModError.Json_UnhandledException, $"Line: {lineNumber}");
+        }
+    }
+
+    private static void ParsePropertyValue(ModBase mod, string _key, ref Utf8JsonReader reader, ModContext context)
+    {
+        string key = _key.ToUpperInvariant();
+
+        // @TODO unrecognized properties need to trigger warnings.
+        // @TODO only Coalesced patches can use string[] value.
+
+        // ModBase
+        if (reader.CurrentDepth == 1)
+        {
+            switch (key)
+            {
+                case "NAME": mod.Name = reader.GetString(); break;
+                case "GAME": mod.Game = EnumConverters.GetGame(reader.GetString()); break;
+                case "DESCRIPTION" or "AUTHOR" or "VERSION" or "DATE": break;
+                case "FILES": if (reader.TokenType is not JsonTokenType.StartArray) Throw(RequiresArray); break;
+                // default: throw new Exception($"Unsupported key '{_key}'");
+            }
+        }
+        // ModFile
+        else if (reader.CurrentDepth == 3)
+        {
+            var file = mod.Files[^1];
+
+            switch (key)
+            {
+                case "FILE": file.FileName = reader.GetString(); file.QualifiedIpaPath = context.QualifyPath(file.FileName); break;
+                case "TYPE": file.FileType = EnumConverters.GetFileType(reader.GetString()); break;
+                case "OBJECTS": if (reader.TokenType is not JsonTokenType.StartArray) Throw(RequiresArray); break;
+                // default: throw new Exception($"Unsupported key '{_key}'");
+            }
+        }
+        // ModObject
+        else if (reader.CurrentDepth == 5)
+        {
+            var obj = mod.Files[^1].Objects[^1];
+
+            switch (key)
+            {
+                case "OBJECT": obj.ObjectName = reader.GetString(); break;
+                case "PATCHES": if (reader.TokenType is not JsonTokenType.StartArray) Throw(RequiresArray); break;
+                // default: throw new Exception($"Unsupported key '{_key}'");
+            }
+        }
+        // ModPatch
+        else
+        {
+            Debug.Assert(reader.CurrentDepth == 7);
+
+            var patch = mod.Files[^1].Objects[^1].Patches[^1];
+
+            switch (key)
+            {
+                case "SECTION": patch.SectionName = reader.GetString(); break;
+                case "TYPE": patch.Type = EnumConverters.GetPatchType(reader.GetString()); break;
+                case "OFFSET": patch.Offset = reader.GetInt32(); break;
+                case "ENABLED": patch.Enabled = reader.GetBoolean(); break;
+                case "VALUE":
+                    // Coalesced patches are allowed to use string[] type for its value property
+                    if (reader.TokenType is JsonTokenType.StartArray)
+                    {
+                        List<string> strings = [];
+
+                        while (true)
+                        {
+                            reader.Read();
+                            if (reader.TokenType is JsonTokenType.EndArray) break;
+
+                            // Only strings are supported
+                            strings.Add(reader.GetString());
+                        }
+
+                        patch.Value.Strings = strings.ToArray();
+                    }
+                    else
+                    {
+                        patch.Value.String = Encoding.UTF8.GetString(reader.ValueSpan);
+                        reader.Skip();
+                    }
+                    break;
+                // default: if (key.Length < 2 || key[0] != '/' && key[1] != '/') throw new Exception($"Unsupported key '{_key}'"); break;
+            }
         }
     }
 }
-
-[JsonSourceGenerationOptions(JsonSerializerDefaults.Web, GenerationMode = JsonSourceGenerationMode.Metadata)]
-[JsonSerializable(typeof(JsonModBase))]
-public partial class Ctx : JsonSerializerContext;
-
-// These are dumber intermediate classes used exclusively by the JsonSerializer source generator.
-// The above code manually converts these classes to the equivalent Mod classes (ModBase, ModFile etc)
-// This is done to avoid generating heavy/bloated Json serializer methods.
-public record JsonModPatch(string? Section, string? Type, int? Offset, JsonElement? Value, bool? Enabled);  // 'sectionName' -> 'section'
-public record JsonModObject(string? Object, JsonModPatch[] Patches);    // 'objectName' -> 'object'
-public record JsonModFile(string? File, string? Type, JsonModObject[] Objects); // 'fileName' -> 'file', 'fileType' -> 'type'
-public record JsonModBase(string? Name, string? Game, JsonModFile[] Files);

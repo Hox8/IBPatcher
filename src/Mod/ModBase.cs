@@ -18,9 +18,10 @@ public enum ModError : byte
     None = 0,
 
     // .JSON
-    Json_HasUnexpectedValue,
+    Json_HasUnexpectedValueType,
     Json_HasMissingComma,
     Json_HasTrailingComma,
+    Json_HasBadValue,
     Json_UnhandledException,
     
     // .INI
@@ -88,7 +89,8 @@ public enum ModFormat : byte
 
 public enum PatchType : byte
 {
-    Unspecified,
+    Unspecified = 0,
+    Invalid,
 
     Bool,
     UBool,
@@ -103,9 +105,11 @@ public enum PatchType : byte
 
 public enum FileType : byte
 {
+    Unspecified = 0,
+    Invalid,
+
     Upk,
-    Coalesced,
-    Unspecified
+    Coalesced
 }
 
 #endregion
@@ -173,7 +177,7 @@ public class ModPatch
     #region Mod-mapped members
 
     public string SectionName;
-    public PatchType Type = PatchType.Unspecified;
+    public PatchType Type;
     public int? Offset;
     public ModPatchValue Value;
     public bool Enabled = true;
@@ -215,11 +219,11 @@ public class ModPatch
     }
 }
 
-public class ModObject(string objectName)
+public class ModObject
 {
     #region Mod format members
 
-    public string ObjectName = objectName;
+    public string ObjectName;
     public List<ModPatch> Patches = [];
 
     #endregion
@@ -232,15 +236,26 @@ public class ModObject(string objectName)
 
     #endregion
 
+    #region Constructors
+
+    public ModObject() { }
+
+    public ModObject(string objectName)
+    {
+        ObjectName = objectName;
+    }
+
+    #endregion
+
     public override string ToString() => string.IsNullOrEmpty(ObjectName) ? ObjectName : "<Nameless Object>" + $" | {Patches.Count} patches";
 }
 
-public class ModFile(string userPath, string qualifiedPath, FileType fileType)
+public class ModFile
 {
     #region Mod format members
 
-    public string FileName = userPath;
-    public FileType FileType = fileType;
+    public string FileName;
+    public FileType FileType;
     public List<ModObject> Objects = [];
 
     #endregion
@@ -250,8 +265,23 @@ public class ModFile(string userPath, string qualifiedPath, FileType fileType)
     /// <summary>
     /// A lower-case, fully-qualified IPA filepath.
     /// </summary>
-    internal string QualifiedIpaPath = qualifiedPath;
+    internal string QualifiedIpaPath;
     internal CachedArchive? Archive;
+
+    #endregion
+
+    #region Constructors
+
+    public ModFile() { }
+
+    // @TODO look into this ctor
+    public ModFile(string userPath, string qualifiedPath, FileType fileType)
+    {
+        FileName = userPath;
+        FileType = fileType;
+
+        QualifiedIpaPath = qualifiedPath;
+    }
 
     #endregion
 
@@ -273,18 +303,39 @@ public class ModFile(string userPath, string qualifiedPath, FileType fileType)
     public override string ToString() => $"{QualifiedIpaPath} | {Objects.Count} objects";
 }
 
-public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<ModError>
+public class ModBase : ErrorHelper<ModError>
 {
     #region Mod format members
 
-    public string Name = Path.GetFileName(modPath);
-    public Game Game = game;
+    public string Name;
+    public Game Game;
     public List<ModFile> Files = [];
 
     #endregion
 
-    internal ModFormat ModType = type;
-    internal string ModPath = modPath;     // Path to mod file on disk.
+    internal ModFormat ModType;
+    internal string ModPath;     // Path to mod file on disk.
+
+    #region Constructors
+
+    public ModBase(string modPath, ModFormat type)
+    {
+        Name = Path.GetFileName(modPath);
+
+        ModType = type;
+        ModPath = modPath;
+    }
+
+    public ModBase(string modPath, ModFormat type, Game game)
+    {
+        Name = Path.GetFileName(modPath);
+        Game = game;
+
+        ModType = type;
+        ModPath = modPath;
+    }
+
+    #endregion
 
     #region ErrorHelper
 
@@ -318,10 +369,11 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
 
         // Format-specific
 
-        ModError.Json_HasUnexpectedValue => "Unexpected value type is present in the JSON mod file.",
-        ModError.Json_HasMissingComma => "Comma is missing from the JSON mod file.",
-        ModError.Json_HasTrailingComma => "Trailing comma is present in the JSON mod file.",
-        ModError.Json_UnhandledException => "Unhandled exception occurred while parsing the JSON mod file.",
+        ModError.Json_HasUnexpectedValueType => "An unexpected value type is present in the JSON mod file.",
+        ModError.Json_HasMissingComma => "A comma is missing from the JSON mod file.",
+        ModError.Json_HasTrailingComma => "A trailing comma is present in the JSON mod file.",
+        ModError.Json_HasBadValue => "An invalid value is present in the JSON mod file.",
+        ModError.Json_UnhandledException => "An unhandled exception occurred while parsing the JSON mod file.",
 
         ModError.Ini_HasNoSections => "No sections were found within the INI mod file.",
         ModError.Ini_HasDuplicateSections => "Duplicate sections were found within the INI mod file.",
@@ -415,6 +467,12 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
         // Ini mods don't currently support metadata like this
         if (ModType is ModFormat.Json)
         {
+            if (Game is Game.Unspecified)
+            {
+                SetError(ModError.Generic_UnspecifiedGame);
+                return;
+            }
+
             if (Game is Game.Unknown)
             {
                 SetError(ModError.Generic_BadGame);
@@ -488,6 +546,12 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
             #region Type
 
             if (file.FileType is FileType.Unspecified)
+            {
+                SetError(ModError.Generic_UnspecifiedFileType, GetErrorLocation(file));
+                return;
+            }
+
+            if (file.FileType is FileType.Invalid)
             {
                 SetError(ModError.Generic_BadFileType, GetErrorLocation(file));
                 return;
@@ -563,8 +627,15 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
                     }
                     else if (file.FileType is FileType.Upk)
                     {
+                        SetError(ModError.Generic_UnspecifiedPatchType, GetErrorLocation(file, obj, patch));
+                        return;
+                    }
+
+                    if (patch.Type is PatchType.Invalid)
+                    {
                         SetError(ModError.Generic_BadPatchType, GetErrorLocation(file, obj, patch));
                         return;
+
                     }
 
                     #endregion
@@ -768,16 +839,9 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
                             patch._sectionReference.Properties.Clear();
                         }
 
-                        if (patch.Value.String is not null)
+                        foreach (var property in patch.Value.Strings)
                         {
-                            patch._sectionReference.ParseProperty(patch.Value.String);
-                        }
-                        else
-                        {
-                            foreach (var property in patch.Value.Strings)
-                            {
-                                patch._sectionReference.ParseProperty(property);
-                            }
+                            patch._sectionReference.ParseProperty(property);
                         }
                     }
 

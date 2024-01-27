@@ -93,7 +93,7 @@ public class ModContext : ErrorHelper<ModContextError>
                     iniMod.Setup(this);
                     Mods.Add(iniMod);
                     break;
-                case ".json":
+                case ".json" or ".jsonc":
                     var jsonMod = JsonMod.Read(entry, this);
                     jsonMod.Setup(this);
                     Mods.Add(jsonMod);
