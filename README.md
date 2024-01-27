@@ -11,7 +11,7 @@ IBPatcher is a modding utility designed to apply community-made mods to the Infi
 - Automatically extracts, modifies, and packages game files—no manual input required.
 - Supports the latest versions of _Infinity Blade I_, _II_, _III_, and _VOTE: The Game_.
 - Support for compression, encryption, and parsing of Unreal UPK and Coalesced files.
-- Implements its own [mod formats](ModFormat.md).
+- Implements its own [mod formats](docs/ModFormat.md).
 
 ## Install
 Download a copy of IBPatcher from the [releases tab](https://github.com/Hox8/IBPatcher/releases), extract to your computer, and run.<br/>
