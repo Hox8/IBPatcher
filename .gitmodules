@@ -1,3 +1,6 @@
 [submodule "UnrealLib"]
 	path = UnrealLib
 	url = https://github.com/Hox8/UnrealLib
+[submodule "Zip"]
+	path = Zip
+	url = https://github.com/Hox8/Zip

@@ -35,24 +35,22 @@
 		<StackTraceSupport>false</StackTraceSupport>
 		<IlcFoldIdenticalMethodBodies>true</IlcFoldIdenticalMethodBodies>
 		<IlcScanReflection>false</IlcScanReflection>
-
-		<!-- Significant size savings, but System.Text.Json requires runtime reflection despite source generation -->
 		<IlcDisableReflection>false</IlcDisableReflection>
 	</PropertyGroup>
 
-	<ItemGroup>
-		<LinkerArg Include="/safeseh:no"></LinkerArg>
-		<LinkerArg Include="/emittoolversioninfo:no"></LinkerArg>
-		<LinkerArg Include="/emitpogophaseinfo"></LinkerArg>
+	<!-- Menial PE linker args to shave off a few KB -->
+	<ItemGroup Condition="'$(OS)'=='Windows_NT'">
+		<LinkerArg Include="/emittoolversioninfo:no" />
+		<LinkerArg Include="/emitpogophaseinfo" />
 	</ItemGroup>
 
 	<PropertyGroup Condition="'$(OS)'!='Windows_NT'">
 		<DefineConstants>UNIX</DefineConstants>
 	</PropertyGroup>
-	
+
 	<ItemGroup>
-		<ProjectReference Include="..\..\UnrealLib\src\UnrealLib.csproj" />
-		<ProjectReference Include="..\..\Zip\src\Zip.csproj" />
+		<ProjectReference Include="..\UnrealLib\src\UnrealLib.csproj" />
+		<ProjectReference Include="..\Zip\src\Zip.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -66,12 +64,5 @@
 			<Link>README.md</Link>
 		</Content>
 	</ItemGroup>
-
-	<!-- Will use DLL at end of the day but using direct .csproj reference for easier initial developemnt -->
-	<!--<ItemGroup>
-	  <Reference Include="Zip">
-	    <HintPath>Zip.dll</HintPath>
-	  </Reference>
-	</ItemGroup>-->
-
+	
 </Project>
