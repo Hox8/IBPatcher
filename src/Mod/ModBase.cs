@@ -443,7 +443,7 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
         // Look for "Coalesced_ALL" file separately before main loop, since we might modify/add files
         for (int i = Files.Count - 1; i >= 0; i--)
         {
-            if (Files[i].FileType is FileType.Coalesced && Files[i].FileName.Equals("coalesced_all", StringComparison.InvariantCultureIgnoreCase))
+            if (Files[i].FileType is FileType.Coalesced && Files[i].FileName.Equals("coalesced_all", StringComparison.OrdinalIgnoreCase))
             {
                 foreach (var languageCode in UnrealLib.Globals.GetLanguages(Game))
                 {
@@ -452,10 +452,10 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
                     string fileName = $"Coalesced_{languageCode}.bin";
                     string qualifiedPath = context.QualifyPath(fileName);
 
-                    // Create a new Coalesced_{languageCode}.bin file and assign it a DEEP copy of the template's objects.
+                    // Get a copy (new or existing) Coalesced_{languageCode}.bin file as copy the template's guts over
                     var newFile = GetFile(fileName, qualifiedPath, FileType.Coalesced);
 
-                    DeepCopyCoalesced(templateFile, newFile);
+                    DeepCopyCoalesced(templateFile, newFile, languageCode);
                 }
 
                 // Delete this template file
@@ -463,7 +463,7 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
                 Files.RemoveAt(i);
             }
 
-            // Do not break here since there's no guarnatee there aren't multiple Coalesced_ALL files...
+            // Do not break here since there's no guarantee there aren't multiple Coalesced_ALL files...
         }
 
         foreach (var file in Files)
@@ -790,31 +790,42 @@ public class ModBase(string modPath, ModFormat type, Game game) : ErrorHelper<Mo
     /// <summary>
     /// Deep-copies the objects and files from template to target.
     /// </summary>
-    /// <param name="template">The ModFile to copy from.</param>
-    /// <param name="target">The ModFile to copy to.</param>
-    private static void DeepCopyCoalesced(ModFile template, ModFile target)
+    /// <param name="from">The ModFile to copy from.</param>
+    /// <param name="to">The ModFile to copy to.</param>
+    private static void DeepCopyCoalesced(ModFile from, ModFile to, string langCode)
     {
-        // @TODO conditionally filter out locale files e.g. 'SwordGame/Localization/INT/...'
+        Debug.Assert(langCode.Length == 3);
 
-        CollectionsMarshal.SetCount(target.Objects, template.Objects.Count);
-        for (int objIdx = 0; objIdx < target.Objects.Count; objIdx++)
+        foreach (var fromObject in from.Objects)
         {
-            target.Objects[objIdx] = new(template.Objects[objIdx].ObjectName);
-
-            var objTarget = target.Objects[objIdx];
-            var objTemplate = template.Objects[objIdx];
-
-            CollectionsMarshal.SetCount(objTarget.Patches, objTemplate.Patches.Count);
-            for (int patchIdx = 0; patchIdx < objTarget.Patches.Count; patchIdx++)
+            // Filter out inappropriate localization files
+            int index = fromObject.ObjectName.Replace('\\', '/').IndexOf("/Localization/", StringComparison.OrdinalIgnoreCase);
+            if (index != -1)
             {
-                objTarget.Patches[patchIdx] = new()
+                string inputLang = fromObject.ObjectName.Substring(index + "/Localization/".Length, 3).ToUpperInvariant();
+                if (inputLang != langCode)
                 {
-                    SectionName = objTemplate.Patches[patchIdx].SectionName,
-                    Type = objTemplate.Patches[patchIdx].Type,
-                    Offset = objTemplate.Patches[patchIdx].Offset,
-                    Value = objTemplate.Patches[patchIdx].Value,
-                    Enabled = objTemplate.Patches[patchIdx].Enabled
-                };
+                    // Localization folder isn't for the current language. Skip it.
+                    continue;
+                }
+            }
+
+            var toObject = new ModObject(fromObject.ObjectName);
+            to.Objects.Add(toObject);
+
+            // Copy patches over unconditionally
+            // We aren't shallow copying here as that would undoubtedly cause headaches in the future
+            toObject.Patches.Capacity = fromObject.Patches.Count;
+            foreach (var fromPatch in fromObject.Patches)
+            {
+                toObject.Patches.Add(new ModPatch
+                {
+                    SectionName = fromPatch.SectionName,
+                    Type = fromPatch.Type,
+                    Offset = fromPatch.Offset,
+                    Value = fromPatch.Value,
+                    Enabled = fromPatch.Enabled
+                });
             }
         }
     }

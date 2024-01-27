@@ -34,10 +34,17 @@
 		<UseSystemResourceKeys>true</UseSystemResourceKeys>
 		<StackTraceSupport>false</StackTraceSupport>
 		<IlcFoldIdenticalMethodBodies>true</IlcFoldIdenticalMethodBodies>
+		<IlcScanReflection>false</IlcScanReflection>
 
 		<!-- Significant size savings, but System.Text.Json requires runtime reflection despite source generation -->
 		<IlcDisableReflection>false</IlcDisableReflection>
 	</PropertyGroup>
+
+	<ItemGroup>
+		<LinkerArg Include="/safeseh:no"></LinkerArg>
+		<LinkerArg Include="/emittoolversioninfo:no"></LinkerArg>
+		<LinkerArg Include="/emitpogophaseinfo"></LinkerArg>
+	</ItemGroup>
 
 	<PropertyGroup Condition="'$(OS)'!='Windows_NT'">
 		<DefineConstants>UNIX</DefineConstants>
@@ -49,7 +56,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<Content Include="..\ModFormat.md">
+		<Content Include="..\docs\CoalescedPatching.md">
+			<Link>CoalescedPatching.md</Link>
+		</Content>
+		<Content Include="..\docs\ModFormat.md">
 			<Link>ModFormat.md</Link>
 		</Content>
 		<Content Include="..\README.md">

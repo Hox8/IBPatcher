@@ -203,18 +203,6 @@ Some fields are exclusive to UPK/Coalesced files, but most are used by both.
 ```
 </details>
 
-# INI STUB
-Stub. Don't forget to mention adding `!` before a section name to clear all its properties.
-
-Some string giving a brief overview of what these are and why they shouldbe used. Don't forget to mention defaulting to `.` if not specified. 
-
-|       Name       | Operator | Description                                                                                                                            |     Example      |
-|:----------------:|:--------:|:---------------------------------------------------------------------------------------------------------------------------------------|:----------------:|
-|      Empty       |   `!`    | Removes all instances of the key. Any value after `=` is ignored.<br/><br/>Suitable for emptying arrays.                               |   `!MyArray=`    |
-|      Remove      |   `-`    | Remove the matching key/value pair.<br/><br/>Suitable for removing array entries or individual keys.                                   | `-MyArray=Value` |
-|      Append      |   `+`    | Adds the key/value pair if it doesn't already exist.                                                                                   | `+MyArray=Value` |
-| Append Duplicate |   `.`    | Append the value to the array, even if the value already exists in the array.                                                          | `.MyArray=Value` |
-
 # Patch Types
 Here is a table describing each of the available patch types used by both INI and JSON mods.
 
@@ -231,24 +219,22 @@ Here is a table describing each of the available patch types used by both INI an
 
 # Miscellaneous
 ### Bin mods
-Bin mods are typically pre-patched Coalesced files exported from the Coalesced Editor, and offer a way
+Bin mods are Coalesced files exported from the Coalesced Editor, and offer mod creators a way
 to quickly test Coalesced edits without needing to create a JSON mod.
 
-Mod creators should prefer to distribute JSON mods over bin mods, as the latter are not transparent and do
-not always work well when patched with other Coalesced-targeting mods.
+As bin mods are file replacements, multiple bin mods cannot be combined. Therefore, mod creaters should prefer to distribute
+Coalesced edits in the JSON format so they can be combined with other Coalesced mods.
 
 ### Commands mod
-IBPatcher looks for a file, 'Commands.txt', which applies ini tweaks at runtime.
+IBPatcher looks for a file named 'Commands.txt', which applies ini tweaks at runtime.
 The Google Drive folder has a version tailored to each game which is fully documented and configurable.
 
 ### TOC patching
-TODO outdated, patcher now recalculates TOCs!!
+The patcher will automatically recalculate the `TOC` files when it detects a file has changed size.
 
-The patcher will automatically patch the game's TOC files if any script package changed size,
-which usually results from a mod using a `replace` type patch.
-
-`TOC` stands for `Table of Contents`, and is essentially a manifest file telling the game what sizes it should expect its files to be.
+`TOC` stands for `Table of Contents`, and it is a manifest telling the game what sizes it should expect its files to be.
 If one of the script packages changes length, the game will notice and exit on startup.
 
-To overcome this, the patcher will empty the contents of all TOC files -
-UE3 cannot check the file sizes if it doesn't have anything to compare against.
+`TOC` files consist of a single master file, and one for each language the game supports.
+When the patcher recalculates the `TOC` files, it merges all of the locale `TOCs` into the master.
+This way, the master `TOC` file will contain all the necessary information and the others can be safely deleted, or kept empty.
