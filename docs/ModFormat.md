@@ -13,11 +13,7 @@ bDisable = true ; Trailing comments are not supported!
 ```
 
 ## Structure
-TODO word this. Just bullet points atm.
-Ini mods follow the standard ini file syntax.
-Every patch must have its own unique header.
-Keys are not case-sensitive, and whitespace is ignored (with the exception being [string values](#patch-types)).
-Any unknown keys which are not included in the below table are ignored.
+INI mods follow the standard INI syntax. Additionally, all patch sections must be uniquely-named.
 
 ### Ini Patch
 |    Key    | Description                                                                                                                                                                                                                                                        | Required |
@@ -68,11 +64,10 @@ value   = -500
 The JSON format was created following a need for greater control, such as the ability to patch coalesced files and manipulate UObjects within Unreal packages.
 
 JSON mods currently must be created by hand as there is no GUI creation tool as of yet.
-It is not recommended to create JSON files with a standard editor like Notepad.
-Visual Studio Code is a great option due to its linting and auto-indentation.
+JSON mod creation is possible with text editors like Notepad or Vim, but plugins or applications that offer linting (such as Visual Studio Code) will lead to a much better experience.
 
 ## Comments
-JSON files do not support comments the same way ini files do. JSON comments are typically written as standard key/value pairs:
+JSON files do not support comments the same way ini files do. JSON comments are typically written as key/value pairs like so:
 ```json
 {
   "//": "This is a comment!",
@@ -105,11 +100,11 @@ ModBase is the root element of the JSON which describes the core data of a mod, 
 ### ModFile
 ModFile describes a file within the IPA to be used by the mod.
 
-|    Key    | Description                                                                                                                                                                                                                                                                             | Required |   Type   |
-|:---------:|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------:|:--------:|
-|  `File`   | The path of the target file. Supports multiple styles, including: <ul><li>`Absolute pathing:` '/Payload/SwordGame.app/Default.png'<li>`Relative pathing:` '../../../iTunesArtwork.jpg'<li>`Relative pathing:` 'SwordGame.xxx'</ul> Relative pathing bases from the CookedIPhone folder. |  `Yes`   | `String` |
-|  `Type`   | Tells the patcher how to interpret `File`, and influences what fields should be used across `ModObject` and `ModPatch`. Current possible values include `UPK` and `Coalesced`.                                                                                                          |   `No`   | `String` |
-| `Objects` | An array of `ModObject` objects.                                                                                                                                                                                                                                                        |  `Yes`   | `Array`  |
+|    Key    | Description                                                                                                                                                                    | Required |   Type   |
+|:---------:|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------:|:--------:|
+|  `File`   | The path of the target file. Path is relative to the CookedIPhone folder.                                                                                                      |  `Yes`   | `String` |
+|  `Type`   | Tells the patcher how to interpret `File`, and influences what fields should be used across `ModObject` and `ModPatch`. Current possible values include `UPK` and `Coalesced`. |   `No`   | `String` |
+| `Objects` | An array of `ModObject` objects.                                                                                                                                               |  `Yes`   | `Array`  |
 
 ### ModObject
 For UPK files, ModObject describes the `UObject` within the UPK to target.<br/>
@@ -124,13 +119,13 @@ For Coalesced files, ModObject describes the `Ini` within the Coalesced file to 
 Responsible for patching in information, using the parent ModObject and ModFile.<br/>
 Some fields are exclusive to UPK/Coalesced files, but most are used by both.
 
-|    Key    | Description                                                                                                                                                                                               |  Used With  | Required |    Type    |
-|:---------:|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:-----------:|:--------:|:----------:|
-| `Section` | The section to target within the Ini. A section will be created if one is not found.                                                                                                                      | `Coalesced` |  `Yes`   |  `String`  |
-|  `Type`   | Indicates the [data type](#patch-types) `Value` should be interpreted as.                                                                                                                                 |    `UPK`    |  `Yes`   |  `String`  |
-| `Offset`  | An offset to use in conjunction with the UObject. `Offset` should not be used for [replace type values](#patch-types).                                                                                    |    `UPK`    |  `Yes`   |  `Number`  |
-|  `Value`  | <ul><li>`UPK:` The value to write in the file at the start of `Object` + `Offset`<li>`Coalesced:` A `string` or `string[]` to insert under `Section`. See [here](#ini-stub) for special formatting rules. |   `Both`    |  `Yes`   | `Variable` |
-| `Enabled` | An **optional** parameter used to tell the patcher to skip applying the current patch.<br/><br/>Defaults to `True` when not specified.                                                                    |   `Both`    |   `No`   | `Boolean`  |
+|    Key    | Description                                                                                                                                                                                                               |  Used With  | Required |    Type    |
+|:---------:|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:-----------:|:--------:|:----------:|
+| `Section` | The section to target within the Ini. A section will be created if one is not found.                                                                                                                                      | `Coalesced` |  `Yes`   |  `String`  |
+|  `Type`   | Indicates the [data type](#patch-types) `Value` should be interpreted as.                                                                                                                                                 |    `UPK`    |  `Yes`   |  `String`  |
+| `Offset`  | An offset to use in conjunction with the UObject. `Offset` should not be used for [replace type values](#patch-types).                                                                                                    |    `UPK`    |  `Yes`   |  `Number`  |
+|  `Value`  | <ul><li>`UPK:` The value to write in the file at the start of `Object` + `Offset`<li>`Coalesced:` A `string` or `string[]` to insert under `Section`. See [this page](CoalescedPatching.md) for special formatting rules. |   `Both`    |  `Yes`   | `Variable` |
+| `Enabled` | An **optional** parameter used to tell the patcher to skip applying the current patch.<br/><br/>Defaults to `True` when not specified.                                                                                    |   `Both`    |   `No`   | `Boolean`  |
 
 <br/>
 
@@ -214,7 +209,7 @@ Here is a table describing each of the available patch types used by both INI an
 |  `Int32`  | A signed integer. Value must range from `-2147483648` to `2147483647`.                                                                                      |       `4`       |      `Number`       |
 |  `Float`  | A standard float. Value must range from `-3.4e38` to `3.4e38`.                                                                                              |       `4`       |      `Decimal`      |
 | `String`  | An ANSI-only string which doesn't append a null terminator.                                                                                                 |   `Variable`    |      `String`       |
-|  `Byte`   | A hexadecimal string with no hex suffixes. Case-insensitive and whitespace tolerant.                                                                        |   `Variable`    |      `String`       |
+|  `Byte`   | A hexadecimal string with no hex suffixes. Case-insensitive and whitespace tolerant. For decimal byte values, use the `UInt8` type.                         |   `Variable`    |      `String`       |
 | `Replace` | A special type available to JSON mods. Identical to the `Byte` type, but instructs the patcher to replace the UObject's data entirely with that of `Value`. |   `Variable`    |      `String`       |
 
 # Miscellaneous
