@@ -36,6 +36,4 @@ https://www.youtube.com/watch?v=iBrwtwaMYkk
 - The team at ChAIR for creating Infinity Blade.
 - Epic Games for Unreal Engine.
 - Niko_KV for kick-starting the Infinity Blade modding scene, and whose work inspired the creation of this tool.
-- The Infinity Blade community:
-   - [Reddit](https://www.reddit.com/r/infinityblade/)
-   - [Discord](https://discord.gg/S7jCh9N)
+- The Infinity Blade community over on [Reddit](https://www.reddit.com/r/infinityblade/) and [Discord](https://discord.gg/S7jCh9N).

@@ -2,7 +2,7 @@
 
 ## INI file
 INI files are configuration files used to store settings and strings, which are organized into sections and key/value pairs.
-For a comprehensive overview of INI files, refer to [this Wikipedia article](https://en.wikipedia.org/wiki/INI_file).
+Refer to [this Wikipedia article](https://en.wikipedia.org/wiki/INI_file) for a comprehensive overview of INI files.
 
 ### Arrays
 INI files used by Unreal Engine 3 support `arrays` which can use either `implicit` or `explicit` indexing:
@@ -37,7 +37,7 @@ Unfortunately, this means every coalesced file stores an identical copy of the g
 Starting with `v1.2.4`, JSON mods can clear INI sections of their properties by specifying a `!` prefix in the section's name.
 This can be useful for when you want to remove all original properties, and is used by the graphics mods to reset every graphics preset.
 
-<details>
+<details open>
 <summary>Example</summary>
 
 <br/>In the following example, the JSON patch removes all properties from [SystemSettingsIPhone3GS] and adds two new values:
@@ -62,7 +62,7 @@ ParticleLODBias=1
 ```json
 {
     "section": "!SystemSettingsIPhone3GS",
-    "value": ["BasedOn=SystemSettings", "MobileContentScaleFactor=2.2"]
+    "value": [ "BasedOn=SystemSettings", "MobileContentScaleFactor=2.2" ]
 }
 ```
 
@@ -83,15 +83,15 @@ To take advantage of this, mod files must target `Coalesced_ALL`. The patcher wi
 
 INI files are copied unconditionally, but localization files are filtered to the Coalesced of the same language. See the example below for more details.
 
-<!-- Say something about how this renders the old way mostly obsolete? -->
+<!-- Say something about how this renders the old approach mostly obsolete? -->
 
-<details>
+<details open>
 <summary>Example</summary>
 
 The following example mod targets all Coalesced files globally and specifies three INIs to edit.
 - `SwordGame/Config/IPhone-SwordGame.ini` is copied to every Coalesced file since it is not language-specific.
-- `SwordGame/Localization/INT/SwordGame.int` is copied to `Coalesced_INT.bin`, since it is a locale file targeting American English (`INT`).
-- `SwordGame/Localization/DEU/SwordGame.deu` is copied to `Coalesced_DEU.bin`, since it is a locale file targeting German (`DEU`).
+- `SwordGame/Localization/INT/SwordGame.int` is copied to `Coalesced_INT.bin`, since it is a locale file targeting American English—`INT`.
+- `SwordGame/Localization/DEU/SwordGame.deu` is copied to `Coalesced_DEU.bin`, since it is a locale file targeting German—`DEU`.
 
 ```json
 {
@@ -100,15 +100,15 @@ The following example mod targets all Coalesced files globally and specifies thr
     "objects": [
         {
             "object": "SwordGame/Config/IPhone-SwordGame.ini",
-            "patches": ...
+            "patches":
         },
         {
             "object": "SwordGame/Localization/INT/SwordGame.int",
-            "patches": ...
+            "patches":
         },
         {
             "object": "SwordGame/Localization/DEU/SwordGame.deu",
-            "patches": ...
+            "patches":
         }
     ]
 }
@@ -116,80 +116,75 @@ The following example mod targets all Coalesced files globally and specifies thr
 
 </details>
 
-<!-- This section and its contents are at an OK starting point, but the quality's not quite there yet. -->
-
-## INI property parsing (wrong name)
+## INI property parsing
 
 Starting with `v1.2.4`, values within Coalesced patches accept prefixes to modify their behavior.
-Values without a prefix default to the `.` operator.
+These allow modders additional control in how properties are applied to INI sections.
 
-|         Name         | Operator | Description                                                                   | Syntax Example |
-|:--------------------:|:--------:|:------------------------------------------------------------------------------|:--------------:|
-|        Empty         |   `!`    | Removes all instances of the key. Values after `=` are ignored.               |  `!MyArray=`   |
-|        Remove        |   `-`    | Remove the matching key/value pair from the section.                          |  `-MyArray=5`  |
-|        Append        |   `+`    | Adds the key/value pair to the section, but only if it doesn't already exist. |  `+MyArray=5`  |
-| Append Unconditional |   `.`    | Adds the key/value pair to the section unconditionally.                       |  `.MyArray=5`  |
+> [!NOTE]
+> Values without a prefix default to using the `.` operator, which matches the functionality prior to `v1.2.4`.
+
+<br/>
+
+|                 Name                 | Operator | Description                                                                   | Syntax Example |
+|:------------------------------------:|:--------:|:------------------------------------------------------------------------------|:--------------:|
+|               `Empty`                |   `!`    | Removes all instances of the key. Values after `=` are ignored.               |  `!MyArray=`   |
+|               `Remove`               |   `-`    | Remove all matching key/value pairs from the section.                         |  `-MyArray=5`  |
+|        `Append (Conditional)`        |   `+`    | Adds the key/value pair to the section, but only if it doesn't already exist. |  `+MyArray=5`  |
+|       `Append (Unconditional)`       |   `.`    | Adds the key/value pair to the section unconditionally.                       |  `.MyArray=5`  |
 
 ## Usage examples
 
-<!-- EMPTY -->
+<!-- Empty -->
 
 <details>
 <summary>Empty</summary>
 
-<br/>Useful for emptying an array and starting new.
-
-INI section pre-patch:
+#### INI section pre-patch:
 ```ini
 [SwordGame.SwordPlayer]
+SpecialMaxGemList=Gem1_1
+SpecialMaxGemList=Gem1_2
 ConstantStoreGemList=Gem3_1
 ConstantStoreGemList=Gem3_2
 ConstantStoreGemList=Gem3_3
-ConstantStoreGemList=Gem3_4
-SpecialMaxGemList=Gem1_1
-SpecialMaxGemList=Gem1_2
-SpecialMaxGemList=Gem1_3
 ```
 
-JSON patch:
+#### JSON patch:
 ```json
 {
     "section": "SwordGame.SwordPlayer",
     "value": [
         "!ConstantStoreGemList=",
-        ".ConstantStoreGemList=Gem3_5"
+        ".ConstantStoreGemList=Gem2_1"
     ]
 }
 ```
 
-INI section post-patch:
+#### INI section post-patch:
 ```ini
 [SwordGame.SwordPlayer]
-ConstantStoreGemList=Gem3_5
 SpecialMaxGemList=Gem1_1
 SpecialMaxGemList=Gem1_2
-SpecialMaxGemList=Gem1_3
+ConstantStoreGemList=Gem2_1
 ```
 
 </details>
 
-<!-- REMOVE -->
+<!-- Remove -->
 
 <details>
 <summary>Remove</summary>
 
-<br/>Useful for removing a few entries from an array.
-
-INI section pre-patch:
+#### INI section pre-patch:
 ```ini
 [SwordGame.SwordPlayer]
 ConstantStoreGemList=Gem3_1
 ConstantStoreGemList=Gem3_2
 ConstantStoreGemList=Gem3_3
-ConstantStoreGemList=Gem3_4
 ```
 
-JSON patch:
+#### JSON patch:
 ```json
 {
     "section": "SwordGame.SwordPlayer",
@@ -200,89 +195,81 @@ JSON patch:
 }
 ```
 
-INI section post-patch:
+#### INI section post-patch:
 ```ini
 [SwordGame.SwordPlayer]
 ConstantStoreGemList=Gem3_2
-ConstantStoreGemList=Gem3_4
 ```
 
 </details>
 
-<!-- APPEND -->
+<!-- Append cond. -->
 
 <details>
-<summary>Append</summary>
+<summary>Append (Conditional)</summary>
 
-<br/> I'm really not sure what this one would be useful for.
+<!-- <br/> I'm really not sure what this one would be useful for. -->
 
-INI section pre-patch:
+#### INI section pre-patch:
 ```ini
 [SwordGame.SwordPlayer]
 ConstantStoreGemList=Gem3_1
 ConstantStoreGemList=Gem3_2
 ConstantStoreGemList=Gem3_3
-ConstantStoreGemList=Gem3_4
 ```
 
-JSON patch:
+#### JSON patch:
 ```json
 {
     "section": "SwordGame.SwordPlayer",
     "value": [
         "+ConstantStoreGemList=Gem3_3",
-        "+ConstantStoreGemList=Gem3_5"
+        "+ConstantStoreGemList=Gem3_4"
     ]
 }
 ```
 
-INI section post-patch:
+#### INI section post-patch:
 ```ini
 [SwordGame.SwordPlayer]
 ConstantStoreGemList=Gem3_1
 ConstantStoreGemList=Gem3_2
 ConstantStoreGemList=Gem3_3
 ConstantStoreGemList=Gem3_4
-ConstantStoreGemList=Gem3_5
 ```
 
 </details>
 
-<!-- APPEND DUPLICATE -->
+<!-- Append uncond. -->
 
 <details>
-<summary>Append duplicate (default)</summary>
+<summary>Append (Unconditional)</summary>
 
-<br/> Pastes the key/value at the bottom of the section.
-This is the default option for properties without an operator.
-
-INI section pre-patch:
+#### INI section pre-patch:
 ```ini
 [SwordGame.SwordPlayer]
 ConstantStoreGemList=Gem3_1
 ConstantStoreGemList=Gem3_2
 ConstantStoreGemList=Gem3_3
-ConstantStoreGemList=Gem3_4
 ```
 
-JSON patch:
-```json
+#### JSON patch:
+```jsonc
 {
     "section": "SwordGame.SwordPlayer",
     "value": [
         ".ConstantStoreGemList=Gem3_2",
-        ".ConstantStoreGemList=Gem3_2"
+        "ConstantStoreGemList=Gem3_2"   // Values without an operator prefix default to Append Unconditional
     ]
 }
 ```
 
-INI section post-patch:
+#### INI section post-patch:
 ```ini
 [SwordGame.SwordPlayer]
 ConstantStoreGemList=Gem3_1
 ConstantStoreGemList=Gem3_2
 ConstantStoreGemList=Gem3_3
-ConstantStoreGemList=Gem3_4
 ConstantStoreGemList=Gem3_2
 ConstantStoreGemList=Gem3_2
 ```
