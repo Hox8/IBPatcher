@@ -145,10 +145,11 @@ public static class IniMod
 
                 if (section.GetValue("enable", out string enable))
                 {
-                    if (!bool.TryParse(enable, out patch.Enabled))
+                    enable = enable.ToUpperInvariant();
+
+                    if (enable != "1" && enable != "TRUE" && enable != "YES")
                     {
-                        mod.SetError(ModError.Generic_BadEnabled, section.Name);
-                        break;
+                        patch.Enabled = false;
                     }
                 }
 
