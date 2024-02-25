@@ -35,7 +35,7 @@
 		<StackTraceSupport>false</StackTraceSupport>
 		<IlcFoldIdenticalMethodBodies>true</IlcFoldIdenticalMethodBodies>
 		<IlcScanReflection>false</IlcScanReflection>
-		<IlcDisableReflection>false</IlcDisableReflection>
+		<IlcDisableReflection>true</IlcDisableReflection>
 	</PropertyGroup>
 
 	<!-- Menial PE linker args to shave off a few KB -->
