@@ -26,7 +26,24 @@ public static class JsonMod
         var mod = new ModBase(path, ModFormat.Json);
 
         ReadOnlySpan<byte> bytes = File.ReadAllBytes(path);
-        var reader = new Utf8JsonReader(bytes, new JsonReaderOptions() { CommentHandling = JsonCommentHandling.Skip });
+
+        int offset = 0;
+        if (bytes.Length >= 3)
+        {
+            // If file is encoded via UTF8 with BOM, skip over BOM
+            if (bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
+            {
+                offset = 3;
+            }
+            // If file is UTF16-encoded, fail
+            else if ((bytes[0] == 0xFE && bytes[1] == 0xFF) || (bytes[0] == 0xFF && bytes[1] == 0xFE))
+            {
+                mod.SetError(ModError.Json_BadEncoding);
+                return mod;
+            }
+        }
+
+        var reader = new Utf8JsonReader(bytes[offset..], new JsonReaderOptions() { CommentHandling = JsonCommentHandling.Skip });
 
         try
         {
