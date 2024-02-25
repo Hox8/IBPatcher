@@ -1,28 +1,39 @@
-<p align="center">
-  <img src="https://user-images.githubusercontent.com/125164507/236659387-e1ac1787-c639-4c6d-bf2a-3090b3a6dd68.png">
-</p>
+﻿![IBPatcher banner](https://user-images.githubusercontent.com/125164507/236659387-e1ac1787-c639-4c6d-bf2a-3090b3a6dd68.png)
 
 # IBPatcher
-## What is it?
-IBPatcher is a modding utility designed for the iOS Infinity Blade series which aims to streamline the process of collating and applying collections of community-made mods.
+IBPatcher is a modding utility designed to apply community-made mods to the Infinity Blade series on iOS.
 
 <p align="center">
-  <img src="https://user-images.githubusercontent.com/125164507/236659991-b90a322b-eeff-4a46-9915-5f62ca9cc2c8.png" width=1024>
+   <img src="https://user-images.githubusercontent.com/125164507/236659991-b90a322b-eeff-4a46-9915-5f62ca9cc2c8.png" width=1024 alt="IBPatcher in use">
 </p>
 
-## Installation
-The latest version of IBPatcher is always available to download from the releases tab: https://github.com/Hox8/IBPatcher/releases
-<br>No installation is required. Simply download the version for your platform and extract the executable to your PC.
-
 ## Features
-- Supports Infinity Blade I, Infinity Blade II, Infinity Blade III, and VOTE!!!
-- Basic Unreal Package deserialization, allowing mods to function on both 64-bit and 32-bit versions of the games (.json mods only)
-- Full support for Coalesced encryption, decryption, and deserialization, allowing for distributable config file mods (.json mods only)
-- Automatically unpacks required files from a zip/ipa, applies modifications, and repackages the archive
-- Documentation for each mod format can be found [here](ModFormat.md)
+- Automatically extracts, modifies, and packages game files—no manual input required.
+- Supports the latest versions of _Infinity Blade I_, _II_, _III_, and _VOTE: The Game_.
+- Support for compression, encryption, and parsing of Unreal UPK and Coalesced files.
+- Implements its own [mod formats](docs/ModFormat.md).
+
+## Install
+Download a copy of IBPatcher from the [releases tab](https://github.com/Hox8/IBPatcher/releases), extract to your computer, and run.<br/>
+IBPatcher is fully self-contained and doesn't depend on any preinstalled libraries or frameworks.
 
 ## Usage
-1. Once IBPatcher has been extracted, an .ipa or .zip file of an Infinity Blade game is required. You can fetch these and more from the [Infinity Blade Discord](https://discord.gg/S7jCh9N), or you can try grabbing a copy from [Archive.org](https://archive.org/). Drag and drop the downloaded game onto the patcher to create the required files.<br><br>
-2. A large collection of community-made mods is available on a Google Drive folder available [here](https://drive.google.com/drive/folders/1796Y97dCVlQMZpSiXQ1xh4ejHlNv50VO). More information can be found in #ibmodding-guide in the Infinity Blade Discord server<br><br>
-3. Place the mods you downloaded into the appropriate mods folder generated earlier. You can now run the patcher to create a modded .ipa of the game.<br><br>
-4. If you'd rather have the patcher output loose files instead, you can do that! Create a folder named 'Output' in the same directory and re-run the patcher. All modified files will be placed in the the Output folder<br>
+### Video guide
+https://www.youtube.com/watch?v=iBrwtwaMYkk
+
+### Written guide
+1. Download and extract the latest version of IBPatcher for your device from the [releases tab](https://github.com/Hox8/IBPatcher/releases). Consider placing it in its own directory as it generates folders for each game.
+
+2. Download a copy of Infinity Blade to use with the patcher. These can be downloaded as IPAs from the [modding server](https://discord.gg/DjpqJHvcJY) or [Archive.org](https://archive.org/details/software?query=Infinity+Blade).
+
+3. Seek out mods from our [shared Google Drive archive](https://drive.google.com/drive/folders/1796Y97dCVlQMZpSiXQ1xh4ejHlNv50VO), and place them in the mod folders which are generated after running the patcher for the first time.
+
+4. Run the patcher and follow the on-screen instructions. By default, a new IPA will be created in the same folder as the IPA which was loaded.
+
+5. If you’d prefer the patcher to output loose files instead, you can do that! Create a folder named ‘Output’ within IBPatcher’s directory and all changed files will be saved to the directory.
+
+## Credits
+- The team at ChAIR for creating Infinity Blade.
+- Epic Games for Unreal Engine.
+- Niko_KV for kick-starting the Infinity Blade modding scene, and whose work inspired the creation of this tool.
+- The Infinity Blade community over on [Reddit](https://www.reddit.com/r/infinityblade/) and [Discord](https://discord.gg/S7jCh9N).

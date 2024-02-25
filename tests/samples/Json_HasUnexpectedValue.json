@@ -1,0 +1,18 @@
+{
+    "game": "IB2",
+    "files": [
+        {
+            "file": "file",
+            "objects": [
+                {
+                    "object": "obj",
+                    "patches": [
+                        {
+                            "offset": false
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
