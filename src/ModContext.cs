@@ -80,7 +80,6 @@ public class ModContext : ErrorHelper<ModContextError>
         // It's important that .bin mods are read before regular mods to ensure coalesced files are not extracted unnecessarily
         foreach (var entry in Directory.EnumerateFiles(ModFolderAbsolute, "*.bin"))
         {
-            // Mods.Add(BinMod.ReadBinMod(entry, this));
             Mods.Add(BinMod.Read(entry, this));
         }
 
@@ -123,25 +122,25 @@ public class ModContext : ErrorHelper<ModContextError>
 
         try
         {
-        Parallel.ForEach(ArchiveCache, archive =>
-            {
-                if (archive.ShouldExtractFile)
+            Parallel.ForEach(ArchiveCache, archive =>
                 {
-                    // Extract entry and add size to the counter
-                    archive.Entry.Extract(Globals.CachePath);
-                    Interlocked.Add(ref currentSize, archive.Entry.UncompressedSize);
+                    if (archive.ShouldExtractFile)
+                    {
+                        // Extract entry and add size to the counter
+                        archive.Entry.Extract(Globals.CachePath);
+                        Interlocked.Add(ref currentSize, archive.Entry.UncompressedSize);
 
-                    // Only print if it won't equal "100.00%", otherwise it messes with the formatting
-                    if (currentSize != totalSize) PrintPercentage((float)currentSize / totalSize);
-                }
+                        // Only print if it won't equal "100.00%", otherwise it messes with the formatting
+                        if (currentSize != totalSize) PrintPercentage((float)currentSize / totalSize);
+                    }
 
-                // Initialize archive
-                archive.Archive = archive.Type is FileType.Upk
-                        ? UnrealPackage.FromFile(Path.Combine(Globals.CachePath, archive.Entry.Name))
-                        : Coalesced.FromFile(Path.Combine(Globals.CachePath, archive.Entry.Name), Ipa.Game);
+                    // Initialize archive
+                    archive.Archive = archive.Type is FileType.Upk
+                            ? UnrealPackage.FromFile(Path.Combine(Globals.CachePath, archive.Entry.Name))
+                            : Coalesced.FromFile(Path.Combine(Globals.CachePath, archive.Entry.Name), Ipa.Game);
 
-                archive.Archive.StartSaving();
-            });
+                    archive.Archive.StartSaving();
+                });
 
             Console.WriteLine(fileCount == 0 ? SkippedString : SuccessString);
         }
@@ -223,15 +222,15 @@ public class ModContext : ErrorHelper<ModContextError>
             // If we've modified the archive, save changes
             if (archive.Modified)
             {
-                long currentBytesWritten = archive.Archive.SaveToFile();
+                archive.FinalLength = archive.Archive.SaveToFile();
 
                 // If any archives have changed length, let us know we need to update the TOCs
-                if (archive.Archive.StartingLength != currentBytesWritten)
+                if (archive.Archive.StartingLength != archive.FinalLength)
                 {
                     requiresTocPatch = true;
                 }
 
-                bytesWritten += currentBytesWritten;
+                bytesWritten += archive.FinalLength;
                 fileCount++;
             }
 
@@ -295,7 +294,7 @@ public class ModContext : ErrorHelper<ModContextError>
             if (archive.Modified && archive.OriginalLength != archive.FinalLength)
             {
                 string archivePath = $"{tocPathPrefix}{archive.Archive.FullName[(archive.Archive.DirectoryName.Length + 1)..].Replace('/', '\\')}";
-                masterToc.UpdateEntry(archivePath, (int)archive.Archive.Length, 0);
+                masterToc.UpdateEntry(archivePath, (int)archive.FinalLength, 0);
             }
         }
 
@@ -591,7 +590,7 @@ public record CachedArchive
     }
 
     public long OriginalLength => Archive.StartingLength;
-    public long FinalLength => Archive.FinalLength;
+    public long FinalLength;
 
     public UnrealPackage Upk => (UnrealPackage)Archive;
     public Coalesced Coalesced => (Coalesced)Archive;
