@@ -23,11 +23,13 @@ public enum ModError : byte
     Json_HasTrailingComma,
     Json_HasBadValue,
     Json_UnhandledException,
+    Json_BadEncoding,
     
     // .INI
     Ini_HasNoSections,
     Ini_HasDuplicateSections,
     Ini_UnexpectedSize,
+    Ini_BadSizeFloat,
     Ini_BadSize,
 
     // .BIN
@@ -152,8 +154,8 @@ public static class EnumConverters
         "byte" => PatchType.Byte,
         "string" => PatchType.String,
         "replace" => PatchType.Replace,
-
-        _ => PatchType.Unspecified
+        null => PatchType.Unspecified,
+        _ => PatchType.Invalid
     };
 }
 
@@ -374,10 +376,12 @@ public class ModBase : ErrorHelper<ModError>
         ModError.Json_HasTrailingComma => "A trailing comma is present in the JSON mod file.",
         ModError.Json_HasBadValue => "An invalid value is present in the JSON mod file.",
         ModError.Json_UnhandledException => "An unhandled exception occurred while parsing the JSON mod file.",
+        ModError.Json_BadEncoding => "Json mod file uses UTF-16 encoding. Please re-save with UTF-8.",
 
         ModError.Ini_HasNoSections => "No sections were found within the INI mod file.",
         ModError.Ini_HasDuplicateSections => "Duplicate sections were found within the INI mod file.",
         ModError.Ini_UnexpectedSize => "'Size' can only be specified for the integer type.",
+        ModError.Ini_BadSizeFloat => "'Size' must be set to '4' for float values.",
         ModError.Ini_BadSize => "'Size' must equal either '1' or '4'.",
 
         ModError.Coalesced_InvalidFile => "Not a valid Coalesced file.",
@@ -839,6 +843,7 @@ public class ModBase : ErrorHelper<ModError>
                             patch._sectionReference.Properties.Clear();
                         }
 
+                        // @TODO BIG: exception on access string[] if actually string
                         foreach (var property in patch.Value.Strings)
                         {
                             patch._sectionReference.ParseProperty(property);
