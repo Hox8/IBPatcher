@@ -17,10 +17,11 @@ public static class IniMod
         {
             mod.SetError(ModError.Ini_HasNoSections);
         }
-        else if (ini.ErrorType is IniError.ContainsDuplicateSection)
-        {
-            mod.SetError(ModError.Ini_HasDuplicateSections, ini.ErrorContext);
-        }
+        // Not checking for duplicate section errors as Tai has too many illegal ini mods, and the patcher doesn't use section names in any capacity
+        //else if (ini.ErrorType is IniError.ContainsDuplicateSection)
+        //{
+        //    mod.SetError(ModError.Ini_HasDuplicateSections, ini.ErrorContext);
+        //}
         else
         {
             foreach (var section in ini.Sections)
