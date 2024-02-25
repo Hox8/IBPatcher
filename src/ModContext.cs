@@ -428,6 +428,8 @@ public class ModContext : ErrorHelper<ModContextError>
     }
 
     // @TODO: Ideally do this behind the scenes during ModBase::Link(). Also use to influence mod load order
+    // @TODO: (UPK) conflict detection can be improved by checking not just if edit same object, but if edits overlap
+    // This method is disgusting. Works though.
     private void PrintConflicts()
     {
         Dictionary<FObjectExport, ConflictHelper> exports = [];
@@ -445,9 +447,33 @@ public class ModContext : ErrorHelper<ModContextError>
                 {
                     if (file.FileType is FileType.Upk)
                     {
-                        if (obj.Export is not null)
+                        if (mod.ModType is ModFormat.Ini)
                         {
-                            exports.TryAdd(obj.Export, new ConflictHelper($"{file.Archive.Archive.Name}, {obj.Export}"));
+                            foreach (var patch in obj.Patches)
+                            {
+                                if (!patch.Enabled) continue;
+
+                                if (file.Archive.Upk.GetObjectAtOffset((int)patch.Offset) is FObjectExport export)
+                                {
+                                    exports.TryAdd(export, new ConflictHelper($"{file.Archive.Archive.Name} | {export}"));
+                                    if (!exports[export].Mods.Contains(mod))
+                                    {
+                                        exports[export].Mods.Add(mod);
+                                        if (exports[export].Mods.Count > 1) conflictCount++;
+                                    }
+                                }
+                            }
+                        }
+                        else if (obj.Export is not null)
+                        {
+                            bool hasAtLeastOneActivePatch = false;
+                            foreach (var patch in obj.Patches)
+                            {
+                                if (patch.Enabled) hasAtLeastOneActivePatch = true;
+                            }
+                            if (!hasAtLeastOneActivePatch) continue;
+
+                            exports.TryAdd(obj.Export, new ConflictHelper($"{file.Archive.Archive.Name} | {obj.Export}"));
                             exports[obj.Export].Mods.Add(mod);
                             if (exports[obj.Export].Mods.Count > 1) conflictCount++;
                         }
@@ -456,6 +482,8 @@ public class ModContext : ErrorHelper<ModContextError>
                     {
                         foreach (var patch in obj.Patches)
                         {
+                            if (!patch.Enabled) continue;
+
                             sections.TryAdd(patch._sectionReference, new ConflictHelper($"{file.Archive.Archive.Name}, {obj.Ini.FriendlyName}, {patch._sectionReference.Name}"));
                             sections[patch._sectionReference].Mods.Add(mod);
                             if (sections[patch._sectionReference].Mods.Count > 1) conflictCount++;
@@ -467,7 +495,7 @@ public class ModContext : ErrorHelper<ModContextError>
 
         if (conflictCount > 0)
         {
-            Globals.PrintColor($"\nMod Conflicts ({conflictCount})\n", ConsoleColor.Yellow);
+            Globals.PrintColor($"\nConflict Warnings ({conflictCount})\n", ConsoleColor.Yellow);
 
             // UPK UObject conflicts
             foreach (var export in exports)

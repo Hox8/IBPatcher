@@ -602,6 +602,12 @@ public class ModBase : ErrorHelper<ModError>
                     // Ini mods handle value in their own ReadMod() method
                     if (ModType is ModFormat.Json && file.FileType is FileType.Upk)
                     {
+                        if (patch.Value.String is null)
+                        {
+                            SetError(ModError.Generic_UnspecifiedValue, GetErrorLocation(file, obj, patch));
+                            return;
+                        }
+
                         if (!patch.TryParseValue(patch.Value.String))
                         {
                             SetError(ModError.Generic_BadValue, GetErrorLocation(file, obj, patch));
