@@ -34,7 +34,7 @@ Unfortunately, this means every coalesced file stores an identical copy of the g
 # Mod format features
 
 ## INI section clearing
-Starting with `v1.2.4`, JSON mods can clear INI sections of their properties by specifying a `!` prefix in the section's name.
+Starting with `v1.3.0`, JSON mods can clear INI sections of their properties by specifying a `!` prefix in the section's name.
 This can be useful for when you want to remove all original properties, and is used by the graphics mods to reset every graphics preset.
 
 <details open>
@@ -76,7 +76,7 @@ MobileContentScaleFactor=2.2
 </details>
 
 ## Global Coalesced patches
-Starting with `v1.2.4`, JSON mods can be made to automatically target all Coalesced files in the game installation.
+Starting with `v1.3.0`, JSON mods can be made to automatically target all Coalesced files in the game installation.
 This allows modders to write out a single set of changes that can be replicated across all Coalesced files, allowing players to experience the mod regardless of their game language.
 
 To take advantage of this, mod files must target `Coalesced_ALL`. The patcher will recognize this as a template and copy it to every Coalesced file.
@@ -118,11 +118,11 @@ The following example mod targets all Coalesced files globally and specifies thr
 
 ## INI property parsing
 
-Starting with `v1.2.4`, values within Coalesced patches accept prefixes to modify their behavior.
+Starting with `v1.3.0`, values within Coalesced patches accept prefixes to modify their behavior.
 These allow modders additional control in how properties are applied to INI sections.
 
 > [!NOTE]
-> Values without a prefix default to using the `.` operator, which matches the functionality prior to `v1.2.4`.
+> Values without a prefix default to using the `.` operator, which matches the functionality prior to `v1.3.0`.
 
 <br/>
 

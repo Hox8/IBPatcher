@@ -6,7 +6,7 @@ namespace IBPatcher;
 public static class Globals
 {
     /// <summary>The name of the application, followed by version number.</summary>
-    public const string AppTitle = "IBPatcher v1.2.4";  // Don't forget to change this in app.manifest!
+    public const string AppTitle = "IBPatcher v1.3.0";  // Don't forget to change this in app.manifest!
 
     /// <summary>Determines the maximum length of strings used in mod names and separators.</summary>
     public const int MaxStringLength = 65;
