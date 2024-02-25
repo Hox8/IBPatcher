@@ -64,10 +64,10 @@ public class ModContext : ErrorHelper<ModContextError>
 
     public string GetErrorTitle() => ErrorType switch
     {
-        ModContextError.FailExtract_Space => "",
-        ModContextError.FailSaveFolder_Contention => "",
-        ModContextError.FailSaveIpa_Space => "",
-        ModContextError.FailSaveIpa_Contention => ""
+        ModContextError.FailExtract_Space => "Extract files",
+        ModContextError.FailSaveFolder_Contention => "Save to Output Folder",
+        ModContextError.FailSaveIpa_Space => "Save to IPA",
+        ModContextError.FailSaveIpa_Contention => "Save to IPA"
     };
 
     /// <summary>
@@ -120,10 +120,9 @@ public class ModContext : ErrorHelper<ModContextError>
         }
 
         PrintMessage($"Unpacking game data | {fileCount} {(fileCount == 1 ? "file" : "files")} | {FormatSizeString(totalSize)}");
-        // PrintMessage($"Unpacking game data | {FormatSizeString(totalSize)}");
 
-        //try
-        //{
+        try
+        {
         Parallel.ForEach(ArchiveCache, archive =>
             {
                 if (archive.ShouldExtractFile)
@@ -145,20 +144,20 @@ public class ModContext : ErrorHelper<ModContextError>
             });
 
             Console.WriteLine(fileCount == 0 ? SkippedString : SuccessString);
-        //}
-        //catch (Exception e)
-        //{
-        //    // Handle rare condition where the user does not have enough free disk space
-        //    if (ExceptionIsDiskSpace(e))
-        //    {
-        //        SetError(ModContextError.FailExtract_Space);
+        }
+        catch (Exception e)
+        {
+            // Handle rare condition where the user does not have enough free disk space
+            if (ExceptionIsDiskSpace(e))
+            {
+                SetError(ModContextError.FailExtract_Space);
 
-        //        // Clear out archives. This will cause most mods to fail and prevent trying to dispose null streams later on
-        //        ArchiveCache.Clear();
+                // Clear out archives. This will cause most mods to fail and prevent trying to dispose null streams later on
+                ArchiveCache.Clear();
 
-        //        Globals.PrintColor($"{FailureString}\n", ConsoleColor.Red);
-        //    }
-        //}
+                Globals.PrintColor($"{FailureString}\n", ConsoleColor.Red);
+            }
+        }
     }
 
     /// <summary>
