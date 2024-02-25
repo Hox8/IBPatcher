@@ -12,6 +12,7 @@ public static class IniMod
         var ini = Ini.FromFile(modPath);
 
         // Error if the ini contains duplicate sections or no sections at all
+
         if (ini.Sections.Count == 0)
         {
             mod.SetError(ModError.Ini_HasNoSections);
@@ -102,7 +103,7 @@ public static class IniMod
 
                 if (section.GetValue("size", out string size))
                 {
-                    if (patch.Type is not PatchType.Int32)
+                    if (patch.Type is not (PatchType.Int32 or PatchType.Float))
                     {
                         mod.SetError(ModError.Ini_UnexpectedSize, section.Name);
                         break;
@@ -118,6 +119,13 @@ public static class IniMod
                     // We don't keep this variable; instead we infer PatchType from it
                     if (result == 1)
                     {
+                        // Niko allows floats to use size parameter, but floats can only ever be size 4
+                        if (patch.Type == PatchType.Float)
+                        {
+                            mod.SetError(ModError.Ini_BadSizeFloat, section.Name);
+                            break;
+                        }
+
                         patch.Type = PatchType.UInt8;
                     }
                 }
