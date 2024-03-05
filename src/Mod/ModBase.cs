@@ -19,6 +19,8 @@ public enum ModError : byte
 
     // .JSON
     Json_HasUnexpectedValueType,
+    Json_HasBadMultiValue,
+    Json_UnexpectedArrayValue,
     Json_HasMissingComma,
     Json_HasTrailingComma,
     Json_HasBadValue,
@@ -194,6 +196,10 @@ public class ModPatch
     // Any sections starting with '!' will set this to true
     internal bool SectionWantsToClearProperties;
 
+    // Hacky variable to determine whether a Coalesced mod uses 'string' or 'string[]',
+    // since the latter isn't an entry in the PatchType enum
+    internal bool IsValueUsingArray;
+
     #endregion
 
     public bool TryParseValue(string value)
@@ -341,6 +347,12 @@ public class ModBase : ErrorHelper<ModError>
 
     #region ErrorHelper
 
+    /// <summary>
+    /// This list will store all unrecognized JSON keys this mod encounters during initialization.
+    /// They'll be printed after mods have been written.
+    /// </summary>
+    public List<string>? UnrecognizedKeys = null;
+
     public string GetErrorLocation(ModFile file, ModObject? obj = null, ModPatch? patch = null)
     {
         var sb = new StringBuilder(string.IsNullOrWhiteSpace(file.FileName) ? $"File: {Files.IndexOf(file)}" : file.FileName);
@@ -372,6 +384,8 @@ public class ModBase : ErrorHelper<ModError>
         // Format-specific
 
         ModError.Json_HasUnexpectedValueType => "An unexpected value type is present in the JSON mod file.",
+        ModError.Json_HasBadMultiValue => "Coalesced array values must consist of only strings.",
+        ModError.Json_UnexpectedArrayValue => "Only Coalesced patches may use array-type values.",
         ModError.Json_HasMissingComma => "A comma is missing from the JSON mod file.",
         ModError.Json_HasTrailingComma => "A trailing comma is present in the JSON mod file.",
         ModError.Json_HasBadValue => "An invalid value is present in the JSON mod file.",
@@ -835,6 +849,7 @@ public class ModBase : ErrorHelper<ModError>
                                 upk.Write(patch.Value.Bytes);
                                 break;
                             case PatchType.Replace:
+                                // Null export will have been checked during Link()
                                 upk.ReplaceExportData(obj.Export, patch.Value.Bytes);
                                 break;
                         }
@@ -849,11 +864,17 @@ public class ModBase : ErrorHelper<ModError>
                             patch._sectionReference.Properties.Clear();
                         }
 
-                        // @TODO BIG: exception on access string[] if actually string
-                        foreach (var property in patch.Value.Strings)
+                        if (patch.IsValueUsingArray)
                         {
-                            patch._sectionReference.ParseProperty(property);
+                            foreach (var property in patch.Value.Strings)
+                            {
+                                patch._sectionReference.ParseProperty(property);
+                            }
                         }
+                        else
+                        {
+                            patch._sectionReference.ParseProperty(patch.Value.String);
+                        }                        
                     }
 
                     file.Archive.Modified = true;

@@ -83,7 +83,7 @@ internal static class Program
         
         // Print the the IPA title in green if we've got the latest version of that particular game,
         // otherwise, print it in yellow. A warning is also displayed during ModContext::ApplyMods()
-        var color = ipa.IsLatestVersion ? ConsoleColor.Green : ConsoleColor.DarkYellow;
+        var color = ipa.IsLatestVersion ? ConsoleColor.Green : ConsoleColor.Yellow;
 
         // Print the game's name on the left...
         Globals.PrintColor(gameTitle, color);

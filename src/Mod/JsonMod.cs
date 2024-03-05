@@ -11,7 +11,9 @@ namespace IBPatcher.Mod;
 
 public static class JsonMod
 {
-    private const string RequiresArray = "REQUIRES_ARRAY";
+    private const string RequiresArray = "0";
+    private const string BadArrayValue = "1";
+    private const string UnexpectedArrayValue = "2";
 
     // Microsoft does not expose this as an accessible (readonly) property, so we're doing it ourselves here.
     [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_lineNumber")]
@@ -103,6 +105,14 @@ public static class JsonMod
         {
             mod.SetError(ModError.Json_HasUnexpectedValueType, $"Line: {lineNumber + 1}");
         }
+        else if (e.Message == BadArrayValue)
+        {
+            mod.SetError(ModError.Json_HasBadMultiValue, $"Line: {lineNumber + 1}");
+        }
+        else if (e.Message == UnexpectedArrayValue)
+        {
+            mod.SetError(ModError.Json_UnexpectedArrayValue, $"Line: {lineNumber + 1}");
+        }
         else
         {
             mod.SetError(ModError.Json_UnhandledException, $"Line: {lineNumber}");
@@ -113,9 +123,6 @@ public static class JsonMod
     {
         string key = _key.ToUpperInvariant();
 
-        // @TODO unrecognized properties need to trigger warnings.
-        // @TODO only Coalesced patches can use string[] value.
-
         // ModBase
         if (reader.CurrentDepth == 1)
         {
@@ -125,7 +132,7 @@ public static class JsonMod
                 case "GAME": mod.Game = EnumConverters.GetGame(reader.GetString()); break;
                 case "DESCRIPTION" or "AUTHOR" or "VERSION" or "DATE": break;
                 case "FILES": if (reader.TokenType is not JsonTokenType.StartArray) Throw(RequiresArray); break;
-                // default: throw new Exception($"Unsupported key '{_key}'");
+                default: AddModWarning(mod, _key); break;
             }
         }
         // ModFile
@@ -138,7 +145,7 @@ public static class JsonMod
                 case "FILE": file.FileName = reader.GetString(); file.QualifiedIpaPath = context.QualifyPath(file.FileName); break;
                 case "TYPE": file.FileType = EnumConverters.GetFileType(reader.GetString()); break;
                 case "OBJECTS": if (reader.TokenType is not JsonTokenType.StartArray) Throw(RequiresArray); break;
-                // default: throw new Exception($"Unsupported key '{_key}'");
+                default: AddModWarning(mod, _key); break;
             }
         }
         // ModObject
@@ -150,7 +157,7 @@ public static class JsonMod
             {
                 case "OBJECT": obj.ObjectName = reader.GetString(); break;
                 case "PATCHES": if (reader.TokenType is not JsonTokenType.StartArray) Throw(RequiresArray); break;
-                // default: throw new Exception($"Unsupported key '{_key}'");
+                default: AddModWarning(mod, _key); break;
             }
         }
         // ModPatch
@@ -170,14 +177,28 @@ public static class JsonMod
                     // Coalesced patches are allowed to use string[] type for its value property
                     if (reader.TokenType is JsonTokenType.StartArray)
                     {
+                        // Mark so we know how to access it later
+                        patch.IsValueUsingArray = true;
+
+                        // If this isn't for a Coalesced patch, throw
+                        if (mod.Files[^1].FileType != FileType.Coalesced)
+                        {
+                            Throw(UnexpectedArrayValue);
+                        }
+
                         List<string> strings = [];
 
                         while (true)
                         {
                             reader.Read();
-                            if (reader.TokenType is JsonTokenType.EndArray) break;
+                            if (reader.TokenType != JsonTokenType.String)
+                            {
+                                if (reader.TokenType == JsonTokenType.EndArray) break;
 
-                            // Only strings are supported
+                                // Array-type values must consist of only strings! Throw on anything different
+                                Throw(BadArrayValue);
+                            }
+
                             strings.Add(reader.GetString());
                         }
 
@@ -189,7 +210,22 @@ public static class JsonMod
                         reader.Skip();
                     }
                     break;
-                // default: if (key.Length < 2 || key[0] != '/' && key[1] != '/') throw new Exception($"Unsupported key '{_key}'"); break;
+                default: AddModWarning(mod, _key); break;
+            }
+        }
+    }
+
+    private static void AddModWarning(ModBase mod, string key)
+    {
+        // If key is not a comment, do warning
+        if (!key.StartsWith("//"))
+        {
+            mod.UnrecognizedKeys ??= [];
+
+            // Add key only if it isn't already present
+            if (!mod.UnrecognizedKeys.Contains(key))
+            {
+                mod.UnrecognizedKeys.Add(key);
             }
         }
     }

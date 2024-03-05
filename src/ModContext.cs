@@ -35,6 +35,7 @@ public class ModContext : ErrorHelper<ModContextError>
     public readonly IPA Ipa;
     public List<ModBase> Mods = [];
     public List<CachedArchive> ArchiveCache = [];
+    public int WarningCount = 0;
 
     public readonly string ModFolderAbsolute;
     public readonly string ModFolderRelative;
@@ -214,6 +215,9 @@ public class ModContext : ErrorHelper<ModContextError>
                 failCount++;
                 Globals.PrintColor(FailureString, ConsoleColor.Red);
             }
+
+            // If a mod has at least one unrecognized key, increment warning count
+            if (mod.UnrecognizedKeys is not null) WarningCount++;
         }
 
         // Clean up archives
@@ -249,8 +253,8 @@ public class ModContext : ErrorHelper<ModContextError>
         PatchTOCs(requiresTocPatch, ref fileCount, ref bytesWritten);
         Save(fileCount, bytesWritten, ref failCount);
 
-        HandleWarnings();
         HandleErrors(failCount);
+        HandleWarnings();
         PrintConflicts();
     }
 
@@ -382,9 +386,27 @@ public class ModContext : ErrorHelper<ModContextError>
 
     private void HandleWarnings()
     {
+        if (!Ipa.IsLatestVersion) WarningCount++;
+        if (WarningCount == 0) return;
+        
+        Globals.PrintColor($"\nWarnings ({WarningCount})\n", ConsoleColor.Yellow);
+
         if (!Ipa.IsLatestVersion)
         {
-            Globals.PrintColor($" - You are not using the latest version of {UnrealLib.Globals.GetString(Ipa.Game, true)}. Mods may not work correctly!\n", ConsoleColor.Gray);
+            Globals.PrintColor($"\n - You are not using the latest version of {UnrealLib.Globals.GetString(Ipa.Game, true)}. Mods may not work correctly!\n", ConsoleColor.Yellow);
+        }
+
+        // Check for JSON mods with unrecognized keys
+        foreach (var mod in Mods)
+        {
+            // Only JSON mods with non-null UnrecognizedKeys lists contain warnings
+            if (mod.ModType != ModFormat.Json || mod.UnrecognizedKeys is null) continue;
+
+            Globals.PrintColor($"\n - {mod.Name}\n", ConsoleColor.Yellow);
+            foreach (var key in mod.UnrecognizedKeys)
+            {
+                Console.WriteLine($"    - Unrecognized key '{key}'");
+            }
         }
     }
 
@@ -421,7 +443,7 @@ public class ModContext : ErrorHelper<ModContextError>
                     else Console.WriteLine();
 
                     // Print the error string
-                    Globals.PrintColor($"   {mod.GetErrorString()}\n", ConsoleColor.Red);
+                    Globals.PrintColor($"    - {mod.GetErrorString()}\n", ConsoleColor.Red);
                 }
             }
         }
@@ -445,8 +467,10 @@ public class ModContext : ErrorHelper<ModContextError>
             {
                 foreach (var obj in file.Objects)
                 {
+                    // Only checking conflicts for UPK mods currently
                     if (file.FileType is FileType.Upk)
                     {
+                        // Ini patches need to be "found" in order to detect conflicts
                         if (mod.ModType is ModFormat.Ini)
                         {
                             foreach (var patch in obj.Patches)
