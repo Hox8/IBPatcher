@@ -920,7 +920,8 @@ public class ModBase : ErrorHelper<ModError>
                     Type = fromPatch.Type,
                     Offset = fromPatch.Offset,
                     Value = fromPatch.Value,
-                    Enabled = fromPatch.Enabled
+                    Enabled = fromPatch.Enabled,
+                    IsValueUsingArray = fromPatch.IsValueUsingArray
                 });
             }
         }
