@@ -250,7 +250,11 @@ public class ModContext : ErrorHelper<ModContextError>
 
         Console.WriteLine();
 
-        PatchTOCs(requiresTocPatch, ref fileCount, ref bytesWritten);
+        if (requiresTocPatch)
+        {
+            PatchTOCs(ref fileCount, ref bytesWritten);
+        }
+
         Save(fileCount, bytesWritten, ref failCount);
 
         HandleErrors(failCount);
@@ -265,15 +269,9 @@ public class ModContext : ErrorHelper<ModContextError>
     /// All LOC files are combined into the master, and all LOC TOCs will have their contents nulled.<br/>
     /// This is done because UE3 loads the master TOC (IPhoneTOC.txt) first, and all LOC TOCs are optional and additive.
     /// </remarks>
-    private void PatchTOCs(bool requiresTOCPatch, ref int fileCount, ref long bytesWritten)
+    private void PatchTOCs(ref int fileCount, ref long bytesWritten)
     {
         PrintMessage("Patching TOCs");
-
-        if (!requiresTOCPatch)
-        {
-            Console.Write(SkippedString);
-            return;
-        }
 
         string cookedPath = Ipa.CookedFolder[1..];  // Remove the prepending '/'
         string tocPathPrefix = Ipa.Game is Game.Vote ? @"..\VoteGame\CookedIPhone\" : @"..\SwordGame\CookedIPhone\";
