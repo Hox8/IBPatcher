@@ -65,7 +65,22 @@ public static class JsonMod
                     if (reader.CurrentDepth == 2) mod.Files.Add(new ModFile());
 
                     // Add new ModObject
-                    else if (reader.CurrentDepth == 4) mod.Files[^1].Objects.Add(new ModObject());
+                    else if (reader.CurrentDepth == 4)
+                    {
+                        // Condense duplicate files
+                        //for (int i = mod.Files.Count - 2; i >= 0; i--)
+                        //{
+                        //    if (mod.Files[i].QualifiedIpaPath.Equals(mod.Files[^1].QualifiedIpaPath, StringComparison.OrdinalIgnoreCase))
+                        //    {
+                        //        // This file has already been added to the mod. Move it to the end of the list...
+                        //        mod.Files[^1] = mod.Files[i];
+                        //        mod.Files.RemoveAt(i);
+                        //    }
+                        //}
+
+                        // Add object to current file
+                        mod.Files[^1].Objects.Add(new ModObject());
+                    }
 
                     // Add new ModPatch
                     else if (reader.CurrentDepth == 6) mod.Files[^1].Objects[^1].Patches.Add(new ModPatch());
@@ -107,7 +122,7 @@ public static class JsonMod
         }
         else if (e.Message == BadArrayValue)
         {
-            mod.SetError(ModError.Json_HasBadMultiValue, $"Line: {lineNumber + 1}");
+            mod.SetError(ModError.Json_HasBadArrayValue, $"Line: {lineNumber + 1}");
         }
         else if (e.Message == UnexpectedArrayValue)
         {

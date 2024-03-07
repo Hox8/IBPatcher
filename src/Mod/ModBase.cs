@@ -19,7 +19,7 @@ public enum ModError : byte
 
     // .JSON
     Json_HasUnexpectedValueType,
-    Json_HasBadMultiValue,
+    Json_HasBadArrayValue,
     Json_UnexpectedArrayValue,
     Json_HasMissingComma,
     Json_HasTrailingComma,
@@ -37,6 +37,8 @@ public enum ModError : byte
     // .BIN
     Coalesced_InvalidFile,
     Coalesced_WrongGame,
+    Coalesced_BadLocaleFolder,
+    Coalesced_BadLocaleExtension,
 
     // Game
     Generic_UnspecifiedGame,
@@ -79,7 +81,6 @@ public enum ModError : byte
     // Linking stage
     Generic_UnspecifiedObject,
     Generic_ExportNotFound,
-    Generic_IniNotFound,
     Generic_UnexpectedSection,
     Generic_ReplaceRequiresObject,
 }
@@ -255,7 +256,7 @@ public class ModObject
 
     #endregion
 
-    public override string ToString() => string.IsNullOrEmpty(ObjectName) ? ObjectName : "<Nameless Object>" + $" | {Patches.Count} patches";
+    public override string ToString() => !string.IsNullOrEmpty(ObjectName) ? ObjectName : "<Nameless Object>" + $" | {Patches.Count} patches";
 }
 
 public class ModFile
@@ -384,7 +385,7 @@ public class ModBase : ErrorHelper<ModError>
         // Format-specific
 
         ModError.Json_HasUnexpectedValueType => "An unexpected value type is present in the JSON mod file.",
-        ModError.Json_HasBadMultiValue => "Coalesced array values must consist of only strings.",
+        ModError.Json_HasBadArrayValue => "Coalesced array values must consist of only strings.",
         ModError.Json_UnexpectedArrayValue => "Only Coalesced patches may use array-type values.",
         ModError.Json_HasMissingComma => "A comma is missing from the JSON mod file.",
         ModError.Json_HasTrailingComma => "A trailing comma is present in the JSON mod file.",
@@ -400,6 +401,8 @@ public class ModBase : ErrorHelper<ModError>
 
         ModError.Coalesced_InvalidFile => "Not a valid Coalesced file.",
         ModError.Coalesced_WrongGame => "Coalesced file does not match the currently-loaded game.",
+        ModError.Coalesced_BadLocaleFolder => "Invalid localization subfolder.",
+        ModError.Coalesced_BadLocaleExtension => "Locale file extension must match its parent folder.",
 
         // Generic - mod format
 
@@ -437,7 +440,6 @@ public class ModBase : ErrorHelper<ModError>
 
         ModError.Generic_UnspecifiedObject => "'Object' was not specified",
         ModError.Generic_ExportNotFound => "Export object was not found within the UPK file",
-        ModError.Generic_IniNotFound => "Ini file was not found within the Coalesced file",
         ModError.Generic_UnexpectedSection => "'Section' cannot be specified for UPK patches",
         ModError.Generic_ReplaceRequiresObject => "'Object' in the parent ModObject must be specified in order to use Replace type",
     };
@@ -531,7 +533,8 @@ public class ModBase : ErrorHelper<ModError>
                     // Get a copy (new or existing) Coalesced_{languageCode}.bin file as copy the template's guts over
                     var newFile = GetFile(fileName, qualifiedPath, FileType.Coalesced);
 
-                    DeepCopyCoalesced(templateFile, newFile, languageCode);
+                    // Try and propgate files to all languages, returning on fail
+                    if (!DeepCopyCoalesced(this, templateFile, newFile, languageCode)) return;
                 }
 
                 // Delete this template file
@@ -740,11 +743,7 @@ public class ModBase : ErrorHelper<ModError>
                         return false;
                     }
 
-                    if (!file.Archive.Coalesced.TryGetIni(obj.ObjectName, out obj.Ini))
-                    {
-                        SetError(ModError.Generic_IniNotFound, GetErrorLocation(file, obj));
-                        return false;
-                    }
+                    file.Archive.Coalesced.TryAddIni(obj.ObjectName, out obj.Ini);
                 }
 
                 #endregion
@@ -888,22 +887,39 @@ public class ModBase : ErrorHelper<ModError>
     /// </summary>
     /// <param name="from">The ModFile to copy from.</param>
     /// <param name="to">The ModFile to copy to.</param>
-    private static void DeepCopyCoalesced(ModFile from, ModFile to, string langCode)
+    /// <param name="langCode">The language code of the Coalesced we're copying to.</param>
+    private static bool DeepCopyCoalesced(ModBase mod, ModFile from, ModFile to, string langCode)
     {
-        Debug.Assert(langCode.Length == 3);
+        const string locString = "/Localization/";
 
         foreach (var fromObject in from.Objects)
         {
+            string normalized = fromObject.ObjectName.Replace('\\', '/');
+
             // Filter out inappropriate localization files
-            int index = fromObject.ObjectName.Replace('\\', '/').IndexOf("/Localization/", StringComparison.OrdinalIgnoreCase);
+            int index = normalized.IndexOf(locString, StringComparison.OrdinalIgnoreCase);
             if (index != -1)
             {
-                string inputLang = fromObject.ObjectName.Substring(index + "/Localization/".Length, 3).ToUpperInvariant();
-                if (inputLang != langCode)
+                string inLangFolder = normalized.Substring(index + locString.Length, 3).ToUpperInvariant();
+                string inLangExt = normalized[^3..].ToUpperInvariant();
+
+                // Error if the localization folder or file extension is bad
+
+                if (!UnrealLib.Globals.Languages.Contains(inLangFolder))
                 {
-                    // Localization folder isn't for the current language. Skip it.
-                    continue;
+                    mod.SetError(ModError.Coalesced_BadLocaleFolder, normalized);
+                    return false;
                 }
+
+                if (inLangExt != inLangFolder)
+                {
+                    mod.SetError(ModError.Coalesced_BadLocaleExtension, normalized);
+                    return false;
+                }
+
+                // INT locale files should be copied unconditionally. Foreign languages should only be copied to their respective Coalesced files
+                // This is done so INT can be used as a fallback if other languages did not recieve the same locale strings.
+                if (inLangExt != "INT" && inLangExt != langCode) continue;
             }
 
             var toObject = new ModObject(fromObject.ObjectName);
@@ -925,5 +941,7 @@ public class ModBase : ErrorHelper<ModError>
                 });
             }
         }
+
+        return true;
     }
 }
