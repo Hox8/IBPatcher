@@ -17,6 +17,7 @@ public enum IpaError : byte
     None = 0,               // No error
     PathNonexistent,        // A file was not found at the given path
     PathUnreadable,         // IPA file wasn't readable
+    PathIsFolder,           // Path represents a folder and not a file
 
     // Zip-specific
     InvalidZip,             // Not a PKWARE Zip
@@ -46,10 +47,17 @@ public class IPA : ErrorHelper<IpaError>
     {
         var fileHelper = new FileHelper(path);
 
-        // Check path is valid and points to an existing file
-        if (!fileHelper.IsLegallyFormatted || !fileHelper.Exists || fileHelper.IsDirectory)
+        // Check path is legally formatted and exists on disk
+        if (!fileHelper.IsLegallyFormatted || !fileHelper.Exists)
         {
-            SetError(IpaError.PathNonexistent, fileHelper.Name);
+            SetError(IpaError.PathNonexistent, path);
+            return;
+        }
+
+        // Make sure we have a file and not a folder
+        if (fileHelper.IsDirectory)
+        {
+            SetError(IpaError.PathIsFolder, path);
             return;
         }
 
@@ -214,7 +222,8 @@ public class IPA : ErrorHelper<IpaError>
     {
         // Generic
         IpaError.None => "No errors.",
-        IpaError.PathNonexistent => $"{ErrorContext} does not exist.",
+        IpaError.PathNonexistent => $"'{ErrorContext}' does not exist.",
+        IpaError.PathIsFolder => $"'{ErrorContext}' is a directory; please pass a zip file instead.",
 
         // Zip specific
         IpaError.InvalidZip => $"{ErrorContext} is not a valid zip archive.",
