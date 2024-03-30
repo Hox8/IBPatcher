@@ -224,6 +224,7 @@ public class IPA : ErrorHelper<IpaError>
         IpaError.None => "No errors.",
         IpaError.PathNonexistent => $"'{ErrorContext}' does not exist.",
         IpaError.PathIsFolder => $"'{ErrorContext}' is a directory; please pass a zip file instead.",
+        IpaError.PathUnreadable => $"'{ErrorContext}' is not readable. Close any files using it any try again.",
 
         // Zip specific
         IpaError.InvalidZip => $"{ErrorContext} is not a valid zip archive.",
