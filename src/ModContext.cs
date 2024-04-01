@@ -16,12 +16,13 @@ namespace IBPatcher;
 
 public enum ModContextError
 {
-    FailExtract_Space,
+    // Extract
+    FailExtract_Space,          // Failed to extract required IPA files to disk due to insufficient disk space
 
-    FailSaveIpa_Space,
-    FailSaveIpa_Contention,
-
-    FailSaveFolder_Contention,
+    // Save
+    FailSaveIpa_Space,          // Failed to save a modded IPA copy due to insufficient disk space
+    FailSaveIpa_Contention,     // Failed to save a modded IPA copy due to destination being in use
+    FailSaveFolder_Contention,  // Failed to save modified files to Output due to being in use
 }
 
 public class ModContext : ErrorHelper<ModContextError>
@@ -52,28 +53,10 @@ public class ModContext : ErrorHelper<ModContextError>
         ModFolderAbsolute = Path.Combine(AppContext.BaseDirectory, ModFolderRelative);
         CommandsModPath = Path.Combine(ModFolderAbsolute, CommandsModName);
 
-        Debug.Assert(Directory.Exists(Globals.CachePath));
+        Debug.Assert(Directory.Exists(Globals.CachePath), "Global persistent cache path does not exist!");
     }
 
-    public override string GetErrorString() => ErrorType switch
-    {
-        ModContextError.FailExtract_Space => "There is not enough free disk space to extract the required files.",
-        ModContextError.FailSaveFolder_Contention => $"Failed to delete '{ErrorContext}'. Close any open files and retry.",
-        ModContextError.FailSaveIpa_Space => "There is not enough free disk space to save the IPA.",
-        ModContextError.FailSaveIpa_Contention => $"Output IPA '{ErrorContext}' is in use. Close any apps using it and retry."
-    };
-
-    public string GetErrorTitle() => ErrorType switch
-    {
-        ModContextError.FailExtract_Space => "Extract files",
-        ModContextError.FailSaveFolder_Contention => "Save to Output Folder",
-        ModContextError.FailSaveIpa_Space => "Save to IPA",
-        ModContextError.FailSaveIpa_Contention => "Save to IPA"
-    };
-
-    /// <summary>
-    /// Scans and pulls in mods from the mod directory.
-    /// </summary>
+    /// <summary> Scans and pulls in mods from the mod directory. </summary>
     public void LoadMods()
     {
         Directory.CreateDirectory(ModFolderAbsolute);
@@ -102,9 +85,7 @@ public class ModContext : ErrorHelper<ModContextError>
         }
     }
 
-    /// <summary>
-    /// Extracts and initializes all cached archives.
-    /// </summary>
+    /// <summary> Extracts and initializes all cached archives. </summary>
     private void LoadCachedArchives()
     {
         long totalSize = 0, currentSize = 0;
@@ -160,9 +141,7 @@ public class ModContext : ErrorHelper<ModContextError>
         }
     }
 
-    /// <summary>
-    /// Writes mods to their respective files, patches TOCs, and repackages the game IPA.
-    /// </summary>
+    /// <summary> Writes mods to their respective files, patches TOCs, and repackages the game IPA. </summary>
     public void ApplyMods()
     {
         int modCount = 0;               // Increments with every processed mod. Used for printing
@@ -262,9 +241,7 @@ public class ModContext : ErrorHelper<ModContextError>
         PrintConflicts();
     }
 
-    /// <summary>
-    /// Recalculates TOC files.
-    /// </summary>
+    /// <summary> Recalculates TOC files. </summary>
     /// <remarks>
     /// All LOC files are combined into the master, and all LOC TOCs will have their contents nulled.<br/>
     /// This is done because UE3 loads the master TOC (IPhoneTOC.txt) first, and all LOC TOCs are optional and additive.
@@ -316,12 +293,7 @@ public class ModContext : ErrorHelper<ModContextError>
         Console.Write(SuccessString);
     }
 
-    /// <summary>
-    /// Saves the patched files to an IPA / folder.
-    /// </summary>
-    /// <param name="fileCount"></param>
-    /// <param name="bytesWritten"></param>
-    /// <param name="failCount"></param>
+    /// <summary> Saves the patched files to an IPA / folder. </summary>
     private void Save(int fileCount, long bytesWritten, ref int failCount)
     {
         bool outputToFolder = Directory.Exists("Output");
@@ -382,11 +354,12 @@ public class ModContext : ErrorHelper<ModContextError>
         }
     }
 
+    /// <summary> Prints all occurred IPA/mod warnings. </summary>
     private void HandleWarnings()
     {
         if (!Ipa.IsLatestVersion) WarningCount++;
         if (WarningCount == 0) return;
-        
+
         Globals.PrintColor($"\nWarnings ({WarningCount})\n", ConsoleColor.Yellow);
 
         if (!Ipa.IsLatestVersion)
@@ -408,9 +381,7 @@ public class ModContext : ErrorHelper<ModContextError>
         }
     }
 
-    /// <summary>
-    /// Collate and print any errors to the console.
-    /// </summary>
+    /// <summary> Collates and prints all errors to the console. </summary>
     /// <param name="failCount">The number of mods which failed.</param>
     private void HandleErrors(int failCount)
     {
@@ -540,7 +511,7 @@ public class ModContext : ErrorHelper<ModContextError>
     /// <summary>
     /// Formats a count of bytes into a human-readable string. Automatically converts between KB, MB, and GB.
     /// </summary>
-    /// <remarks>Appends the unit onto the end of the string, for example: "4.13 KB".</remarks>
+    /// <remarks> Appends the unit onto the end of the string, for example: "4.13 KB". </remarks>
     public static string FormatSizeString(long numBytes)
     {
         const int Kilobyte = 1024;
@@ -549,7 +520,7 @@ public class ModContext : ErrorHelper<ModContextError>
 
         return numBytes switch
         {
-            >= Gigabyte => $"{(double)numBytes / Gigabyte:N2} GB",
+            >= Gigabyte => $"{(float)numBytes / Gigabyte:N2} GB",
             >= Megabyte => $"{(float)numBytes / Megabyte:N2} MB",
             _ => $"{(float)numBytes / Kilobyte:N2} KB"
         };
@@ -557,14 +528,13 @@ public class ModContext : ErrorHelper<ModContextError>
 
     public static void PrintPercentage(float percentage) => Console.Write($"{Backspace} [ {percentage * 100:00.0}% ]");
 
-    /// <summary>
-    /// Prints a message to the console. Used during mod patching process.
-    /// </summary>
+    /// <summary> Prints a formatted message to the console. </summary>
+    /// <remarks> Used during mod patching process. </remarks>
     public static void PrintMessage(string modName, int? digit = null)
     {
         string status = digit is null ? modName : $"  {digit:00} - {modName}";
 
-        // Globals.MaxStringLength - 14 to guarantee at least three period chars are shown before the success string 
+        // Globals.MaxStringLength - 14 to guarantee at least three period chars are shown before the success string
         status = status[..Math.Min(status.Length, Globals.MaxStringLength - 14)];
 
         Console.Write($"{status} ".PadRight(Globals.MaxStringLength, '.'));
@@ -599,6 +569,26 @@ public class ModContext : ErrorHelper<ModContextError>
     }
 
     private static bool ExceptionIsDiskSpace(Exception e) => e.Message.StartsWith("There is not enough space");
+
+    #endregion
+
+    #region Error messages
+
+    public override string GetErrorString() => ErrorType switch
+    {
+        ModContextError.FailExtract_Space => "There is not enough free disk space to extract the required files.",
+        ModContextError.FailSaveIpa_Space => "There is not enough free disk space to save the IPA.",
+        ModContextError.FailSaveIpa_Contention => $"Output IPA '{ErrorContext}' is in use. Close any apps using it and retry.",
+        ModContextError.FailSaveFolder_Contention => $"Failed to delete '{ErrorContext}'. Close any open files and retry."
+    };
+
+    public string GetErrorTitle() => ErrorType switch
+    {
+        ModContextError.FailExtract_Space => "Extract files",
+        ModContextError.FailSaveIpa_Space => "Save to IPA",
+        ModContextError.FailSaveIpa_Contention => "Save to IPA",
+        ModContextError.FailSaveFolder_Contention => "Save to Output Folder"
+    };
 
     #endregion
 

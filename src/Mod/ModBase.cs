@@ -13,7 +13,7 @@ namespace IBPatcher.Mod;
 
 #region Enums
 
-public enum ModError : byte
+public enum ModError
 {
     None = 0,
 
@@ -26,7 +26,7 @@ public enum ModError : byte
     Json_HasBadValue,
     Json_UnhandledException,
     Json_BadEncoding,
-    
+
     // .INI
     Ini_HasNoSections,
     Ini_HasDuplicateSections,
@@ -85,14 +85,14 @@ public enum ModError : byte
     Generic_ReplaceRequiresObject,
 }
 
-public enum ModFormat : byte
+public enum ModFormat
 {
     Ini,
     Json,
     Bin
 }
 
-public enum PatchType : byte
+public enum PatchType
 {
     Unspecified = 0,
     Invalid,
@@ -103,12 +103,14 @@ public enum PatchType : byte
     Int32,
     Float,
 
-    Byte,   // Strictly hex string. For numerical byte, use UInt8
     String,
+    Strings,    // Treated specially. Not exposed as a user option!
+
+    Byte,       // Strictly hex string. For numerical byte, use UInt8
     Replace
 }
 
-public enum FileType : byte
+public enum FileType
 {
     Unspecified = 0,
     Invalid,
@@ -144,7 +146,7 @@ public static class EnumConverters
         // Original Niko_KV formats:
         // INTEGER
         // FLOAT
-        // BOOLEAN   
+        // BOOLEAN
         // STRING
         // BYTE
 
@@ -167,14 +169,14 @@ public static class EnumConverters
 [StructLayout(LayoutKind.Explicit)]
 public struct ModPatchValue
 {
-    // UInt8 is shared by Bool, UBool, and UInt8
-    [FieldOffset(0)] public byte UInt8;
-    [FieldOffset(0)] public int Int32;
+    [FieldOffset(0)] public byte Byte;
+    [FieldOffset(0)] public int Int;
     [FieldOffset(0)] public float Float;
 
-    [FieldOffset(8)] public byte[] Bytes;
     [FieldOffset(8)] public string String;
-    [FieldOffset(8)] public string[] Strings;
+    [FieldOffset(8)] public List<string> Strings;   // List<> due to how data is read in JSON
+
+    [FieldOffset(8)] public byte[] Bytes;
 }
 
 public class ModPatch
@@ -197,27 +199,26 @@ public class ModPatch
     // Any sections starting with '!' will set this to true
     internal bool SectionWantsToClearProperties;
 
-    // Hacky variable to determine whether a Coalesced mod uses 'string' or 'string[]',
-    // since the latter isn't an entry in the PatchType enum
-    internal bool IsValueUsingArray;
-
     #endregion
 
     public bool TryParseValue(string value)
     {
         try
         {
-            Value = Type switch
+            switch (Type)
             {
-                PatchType.Bool => new ModPatchValue { UInt8 = (byte)(value == "1" || value == "true" ? 0x01 : 0x00) },
-                PatchType.UBool => new ModPatchValue { UInt8 = (byte)(value == "1" || value == "true" ? 0x27 : 0x28) },
-                PatchType.UInt8 => new ModPatchValue { UInt8 = byte.Parse(value) },
-                PatchType.Int32 => new ModPatchValue { Int32 = int.Parse(value) },
-                PatchType.Float => new ModPatchValue { Float = float.Parse(value) },
-                PatchType.String => new ModPatchValue { String = value },
-                PatchType.Byte or PatchType.Replace => new ModPatchValue { Bytes = Convert.FromHexString(value.Replace(" ", "")) },
-                _ => new ModPatchValue()    // @TODO why am I handling a default case here? Can I not just catch below?
-            };
+                case PatchType.Bool: Value.Byte = (byte)(value == "1" || value == "true" ? 0x01 : 0x00); break;
+                case PatchType.UBool: Value.Byte = (byte)(value == "1" || value == "true" ? 0x27 : 0x28); break;
+                case PatchType.UInt8: Value.Byte = byte.Parse(value); break;
+                case PatchType.Int32: Value.Int = int.Parse(value); break;
+                case PatchType.Float: Value.Float = float.Parse(value); break;
+
+                case PatchType.String: Value.String = value;  break;
+                // PatchType.Strings is handled during Json init
+
+                case PatchType.Replace:
+                case PatchType.Byte: Value.Bytes = Convert.FromHexString(value.Replace(" ", "")); break;
+            }
         }
         catch
         {
@@ -283,7 +284,6 @@ public class ModFile
 
     public ModFile() { }
 
-    // @TODO look into this ctor
     public ModFile(string userPath, string qualifiedPath, FileType fileType)
     {
         FileName = userPath;
@@ -595,7 +595,7 @@ public class ModBase : ErrorHelper<ModError>
                 if (file.FileType is FileType.Coalesced)
                 {
                     obj.ObjectName = obj.ObjectName.Replace('/', '\\');
-                    
+
                     if (!obj.ObjectName.StartsWith(@"..\..\"))
                     {
                         obj.ObjectName = @"..\..\" + obj.ObjectName;
@@ -644,7 +644,7 @@ public class ModBase : ErrorHelper<ModError>
 
                     #region Type
 
-                    if (patch.Type is not PatchType.Unspecified)
+                    if (patch.Type != PatchType.Unspecified && patch.Type != PatchType.Strings)
                     {
                         if (file.FileType is FileType.Coalesced)
                         {
@@ -689,7 +689,7 @@ public class ModBase : ErrorHelper<ModError>
                             return;
                         }
                     }
-                    else if (patch.Type is not (PatchType.Unspecified or PatchType.Replace))
+                    else if (patch.Type is not (PatchType.Unspecified or PatchType.Replace or PatchType.Strings))
                     {
                         SetError(ModError.Generic_UnspecifiedOffset, GetErrorLocation(file, obj, patch));
                         return;
@@ -819,7 +819,7 @@ public class ModBase : ErrorHelper<ModError>
                 foreach (var patch in obj.Patches)
                 {
                     if (!patch.Enabled) continue;
-                    
+
                     if (file.FileType is FileType.Upk)
                     {
                         var upk = file.Archive.Upk;
@@ -835,10 +835,10 @@ public class ModBase : ErrorHelper<ModError>
                             case PatchType.Bool:
                             case PatchType.UBool:
                             case PatchType.UInt8:
-                                upk.Serialize(ref patch.Value.UInt8);
+                                upk.Serialize(ref patch.Value.Byte);
                                 break;
                             case PatchType.Int32:
-                                upk.Serialize(ref patch.Value.Int32);
+                                upk.Serialize(ref patch.Value.Int);
                                 break;
                             case PatchType.Float:
                                 upk.Serialize(ref patch.Value.Float);
@@ -863,7 +863,7 @@ public class ModBase : ErrorHelper<ModError>
                             patch._sectionReference.Properties.Clear();
                         }
 
-                        if (patch.IsValueUsingArray)
+                        if (patch.Type == PatchType.Strings)
                         {
                             foreach (var property in patch.Value.Strings)
                             {
@@ -873,7 +873,7 @@ public class ModBase : ErrorHelper<ModError>
                         else
                         {
                             patch._sectionReference.ParseProperty(patch.Value.String);
-                        }                        
+                        }
                     }
 
                     file.Archive.Modified = true;
@@ -936,8 +936,7 @@ public class ModBase : ErrorHelper<ModError>
                     Type = fromPatch.Type,
                     Offset = fromPatch.Offset,
                     Value = fromPatch.Value,
-                    Enabled = fromPatch.Enabled,
-                    IsValueUsingArray = fromPatch.IsValueUsingArray
+                    Enabled = fromPatch.Enabled
                 });
             }
         }

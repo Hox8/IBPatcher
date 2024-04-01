@@ -17,9 +17,11 @@
 	</PropertyGroup>
 
 	<PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+
 		<DebugType>none</DebugType>
 		<DebugSymbols>false</DebugSymbols>
 		<DebuggerSupport>false</DebuggerSupport>
+
 		<MetricsSupport>false</MetricsSupport>
 		<StartupHookSupport>false</StartupHookSupport>
 		<InvariantGlobalization>true</InvariantGlobalization>
@@ -27,15 +29,20 @@
 		<AutoreleasePoolSupport>false</AutoreleasePoolSupport>
 		<EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
 		<EnableUnsafeUTF7Encoding>false</EnableUnsafeUTF7Encoding>
+
 		<EventSourceSupport>false</EventSourceSupport>
 		<HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
 		<MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+		<StackTraceSupport>false</StackTraceSupport>
+
 		<UseNativeHttpHandler>true</UseNativeHttpHandler>
 		<UseSystemResourceKeys>true</UseSystemResourceKeys>
-		<StackTraceSupport>false</StackTraceSupport>
+
 		<IlcFoldIdenticalMethodBodies>true</IlcFoldIdenticalMethodBodies>
 		<IlcScanReflection>false</IlcScanReflection>
 		<IlcDisableReflection>true</IlcDisableReflection>
+
+		<IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
 	</PropertyGroup>
 
 	<!-- Menial PE linker args to shave off a few KB -->
@@ -55,14 +62,14 @@
 
 	<ItemGroup>
 		<Content Include="..\docs\CoalescedPatching.md">
-			<Link>CoalescedPatching.md</Link>
+			<Link>Docs\CoalescedPatching.md</Link>
 		</Content>
 		<Content Include="..\docs\ModFormat.md">
-			<Link>ModFormat.md</Link>
+			<Link>Docs\ModFormat.md</Link>
 		</Content>
 		<Content Include="..\README.md">
-			<Link>README.md</Link>
+			<Link>Docs\README.md</Link>
 		</Content>
 	</ItemGroup>
-	
+
 </Project>

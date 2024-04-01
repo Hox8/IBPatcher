@@ -5,19 +5,20 @@ namespace IBPatcher;
 
 public static class Globals
 {
-    /// <summary>The name of the application, followed by version number.</summary>
-    public const string AppTitle = "IBPatcher v1.3.0";  // Don't forget to change this in app.manifest!
+    /// <summary> Friendly string representing the app's name and version. </summary>
+    /// <remarks> Don't forget to change this in `app.manifest`! </remarks>
+    public const string AppTitle = "IBPatcher v1.3.0";
 
-    /// <summary>Determines the maximum length of strings used in mod names and separators.</summary>
+    /// <summary> Maximum string length used in mod names and separators. </summary>
     public const int MaxStringLength = 65;
-    
-    /// <summary>Sequence of characters used for "pretty printing" and separating relevant sections of output.</summary>
+
+    /// <summary> Sequence of characters used for separating relevant sections of console output. </summary>
     public static readonly string Separator = new('=', MaxStringLength);
 
-    /// <summary>Unique path used to store intermediaries across the entire application lifetime.</summary>
+    /// <summary> Unique path used to store intermediaries during application lifetime. </summary>
     public static readonly string CachePath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
 
-    /// <summary>Prints the passed string to the console using the desired color.</summary>
+    /// <summary> Prints the passed string to the console using the desired color. </summary>
     /// <remarks>
     /// - Uses Console.Write()<br/>
     /// - Reverts Console color to previous value on finish
@@ -28,10 +29,11 @@ public static class Globals
 
         Console.ForegroundColor = color;
         Console.Write(content);
-        
+
         Console.ForegroundColor = previous;
     }
 
+    /// <summary> Clears the console. </summary>
     public static void ClearConsole()
     {
         Console.Clear();
@@ -41,8 +43,8 @@ public static class Globals
 #endif
     }
 
-    // Prints the "Press any key..." dialog and awaits a key press.
-    // This is not done on Unix systems as the Terminal behaves differently
+    /// <summary> Prints the 'Press any key...' dialog and awaits a key press. </summary>
+    /// <remarks> This is not executed on Unix systems as the Terminal behaves differently. </remarks>
     public static void PressAnyKey()
     {
 #if !UNIX

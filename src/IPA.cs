@@ -11,7 +11,7 @@ using static UnrealLib.Globals;
 
 namespace IBPatcher;
 
-public enum IpaError : byte
+public enum IpaError
 {
     // Generic
     None = 0,               // No error
@@ -23,10 +23,12 @@ public enum IpaError : byte
     InvalidZip,             // Not a PKWARE Zip
     UnsupportedCompression, // One or more entries contains an unsupported compression scheme
     Encrypted,              // One or more entries are encrypted
-    // CrcFailed,           // One or more entries failed Crc check
     InvalidGame             // Archive does is not Sword/Vote Game
 }
 
+/// <summary>
+/// An Apple iOS zip archive representing an Infinity Blade game.
+/// </summary>
 public class IPA : ErrorHelper<IpaError>
 {
     private readonly ZipArchive _archive;
@@ -143,10 +145,14 @@ public class IPA : ErrorHelper<IpaError>
     #endregion
 
     /// <summary>
-    /// Saves the IPA file to the given path.
+    /// Saves the IPA file to the specified path.
     /// </summary>
     public void Save(string outputDirectory) => _archive.Save(outputDirectory);
 
+    /// <summary>
+    /// Updates all entries in the specified directory.
+    /// </summary>
+    /// <remarks> Passed directory should mimic the structure of the IPA. </remarks>
     public void UpdateEntries(string directoryPath, string basePath) => _archive.UpdateEntries(directoryPath, basePath);
 
     #region Helpers
@@ -154,13 +160,13 @@ public class IPA : ErrorHelper<IpaError>
     public void ExtractEntries(List<ZipEntry> entries, string basePath) => _archive.ExtractEntriesParallel(entries, basePath);
     public ZipEntry? GetEntry(string path) => _archive.GetEntry(path);
     public void RemoveEntry(string path) => _archive.RemoveEntry(path);
-    public ICollection<ZipEntry> Entries => _archive.Entries;
+    public List<ZipEntry> Entries => _archive.Entries;
 
     /// <summary>
     /// Takes a file path and expands it to a fully-qualified path corresponding to the IPA.
     /// </summary>
-    /// <param name="path">The path to expand; e.g. "SwordGame.xxx", "../Binaries/Commands.txt".</param>
-    /// <remarks>Relative paths originate from the IPA's CookedIPhone folder.</remarks>
+    /// <param name="path"> The path to expand; e.g. "SwordGame.xxx", "../Binaries/Commands.txt". </param>
+    /// <remarks> Relative paths originate from the IPA's CookedIPhone folder. </remarks>
     public string QualifyPath(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -193,15 +199,16 @@ public class IPA : ErrorHelper<IpaError>
     }
 
     /// <summary>
-    /// Returns path relative to the CookedIPhone folder in the IPA.
+    /// Returns a path relative to the CookedIPhone folder in the IPA.
     /// </summary>
-    /// <param name="path">Absolute path within the IPA to be made relative.</param>
-    /// <remarks>Opposite of <see cref="QualifyPath"/></remarks>
+    /// <param name="path"> Absolute path within the IPA to be made relative. </param>
+    /// <remarks> This method is the opposite of <see cref="QualifyPath"/> </remarks>
     public string GetRelativePath(string path) => Path.GetRelativePath(CookedFolder, path);
 
     /// <summary>
-    /// An event which is fired each time the ZipArchive saves an entry. Used to print a self-updating percentage box.
+    /// An event which is fired each time the ZipArchive saves an entry.
     /// </summary>
+    /// <remarks> Used to print a self-updating percentage box. </remarks>>
     private static void ProgressChanged(object sender, ZipProgressEventArgs e)
     {
         // We don't want to print 100% because the extra digit breaks the formatting
@@ -216,21 +223,20 @@ public class IPA : ErrorHelper<IpaError>
 
     #endregion
 
-    #region Error helper
+    #region Error messages
 
     public override string GetErrorString() => ErrorType switch
     {
         // Generic
         IpaError.None => "No errors.",
         IpaError.PathNonexistent => $"'{ErrorContext}' does not exist.",
+        IpaError.PathUnreadable => $"'{ErrorContext}' could not be read. Close any files using it any try again.",
         IpaError.PathIsFolder => $"'{ErrorContext}' is a directory; please pass a zip file instead.",
-        IpaError.PathUnreadable => $"'{ErrorContext}' is not readable. Close any files using it any try again.",
 
-        // Zip specific
+        // Zip-specific
         IpaError.InvalidZip => $"{ErrorContext} is not a valid zip archive.",
-        IpaError.UnsupportedCompression => $"{ErrorContext} contains entries stored with an unsupported comrpession scheme.\n   Apple's IPAs support only 'None' and 'Deflate'.",
+        IpaError.UnsupportedCompression => $"{ErrorContext} contains entries stored with an unsupported compression scheme.\n   Apple's IPAs support only 'None' and 'Deflate'.",
         IpaError.Encrypted => $"{ErrorContext} contains one or more encrypted entries.",
-        // IpaError.CrcFailed => $"{ErrorContext} contains an entry which failed its CRC check. The zip file is likely corrupt.",
         IpaError.InvalidGame => $"{ErrorContext} is not an Infinity Blade archive.",
     };
 

@@ -178,7 +178,7 @@ public static class JsonMod
         // ModPatch
         else
         {
-            Debug.Assert(reader.CurrentDepth == 7);
+            Debug.Assert(reader.CurrentDepth == 7, "JSON mod reached unreocgnized depth. This should NEVER happen!");
 
             var patch = mod.Files[^1].Objects[^1].Patches[^1];
 
@@ -192,16 +192,15 @@ public static class JsonMod
                     // Coalesced patches are allowed to use string[] type for its value property
                     if (reader.TokenType is JsonTokenType.StartArray)
                     {
-                        // Mark so we know how to access it later
-                        patch.IsValueUsingArray = true;
-
                         // If this isn't for a Coalesced patch, throw
                         if (mod.Files[^1].FileType != FileType.Coalesced)
                         {
                             Throw(UnexpectedArrayValue);
                         }
 
-                        List<string> strings = [];
+                        // Prepare for List<string> type
+                        patch.Type = PatchType.Strings;
+                        patch.Value.Strings = [];
 
                         while (true)
                         {
@@ -214,10 +213,8 @@ public static class JsonMod
                                 Throw(BadArrayValue);
                             }
 
-                            strings.Add(reader.GetString());
+                            patch.Value.Strings.Add(reader.GetString());
                         }
-
-                        patch.Value.Strings = strings.ToArray();
                     }
                     else
                     {
@@ -230,9 +227,12 @@ public static class JsonMod
         }
     }
 
+    /// <summary> Adds an unrecognized JSON key as a mod warning. </summary>
+    /// <param name="mod"> The mod to add the warning to. </param>
+    /// <param name="key"> The unrecognized JSON key. </param>
     private static void AddModWarning(ModBase mod, string key)
     {
-        // If key is not a comment, do warning
+        // Keys starting with '//' are treated as comments and should be ignored
         if (!key.StartsWith("//"))
         {
             mod.UnrecognizedKeys ??= [];

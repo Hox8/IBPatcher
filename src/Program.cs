@@ -10,7 +10,8 @@ internal static class Program
     {
         Console.Title = Globals.AppTitle;
         Console.OutputEncoding = Encoding.UTF8;
-        Directory.SetCurrentDirectory(AppContext.BaseDirectory);    // Force set the working directory to that of the executable
+
+        Directory.SetCurrentDirectory(AppContext.BaseDirectory);    // Ensure working directory is that of the exe and not IPA
         Directory.CreateDirectory(Globals.CachePath);               // Create a directory to store temporary files. Disposed of during PrepareForExit()
 
         // Terminal "fluff" is often printed at the top of the window which we'll get rid of here
@@ -26,7 +27,7 @@ internal static class Program
             PrintApplicationInfo();
 #if UNIX
             // Unix cannot drag-and-drop onto executables, so prompt to drag-and-drop into the active Terminal window instead
-            Console.Write("Drag an IPA onto this window to begin: ");
+            Console.Write("Drag an IPA file onto this window to begin: ");
 
             // Trim leading/trailing whitespace, quotation chars, and any escaped whitespace
             args = [Console.ReadLine()?.Trim().Trim('\"').Replace("\\", "") ?? ""];
@@ -60,7 +61,7 @@ internal static class Program
         // If there weren't any mods in the loaded game's mod directory, prompt the user to obtain some
         if (modContext.ModCount == 0)
         {
-            Console.WriteLine($"\n - No mods found under './{modContext.ModFolderRelative}'!\n   Place some mods in the folder and re-run the patcher.");
+            Console.WriteLine($"\n - No mods found under './{modContext.ModFolderRelative}'!\n   Place some mods in the folder and restart IBPatcher.");
             Console.WriteLine("\n   Refer to the GitHub readme for info on how to obtain mods.");
             PrepareForExit();
             return;
@@ -73,15 +74,15 @@ internal static class Program
     /// <summary>
     /// Prints the loaded game's title and engine info to the console.
     /// </summary>
-    /// <param name="ipa"></param>
+    /// <param name="ipa"> The loaded game archive. </param>
     private static void PrintIpaInfo(IPA ipa)
     {
         Console.WriteLine(Globals.Separator);
 
-        string gameTitle = UnrealLib.Globals.GetString(ipa.Game, false);
-        string gameVersion = $"v{ipa.PackageVersion}, {ipa.EngineVersion}";
-        
-        // Print the the IPA title in green if we've got the latest version of that particular game,
+        var gameTitle = UnrealLib.Globals.GetString(ipa.Game, false);
+        var gameVersion = $"v{ipa.PackageVersion}, {ipa.EngineVersion}";
+
+        // Print the IPA title in green if we've got the latest version of that particular game,
         // otherwise, print it in yellow. A warning is also displayed during ModContext::ApplyMods()
         var color = ipa.IsLatestVersion ? ConsoleColor.Green : ConsoleColor.Yellow;
 
@@ -107,7 +108,7 @@ internal static class Program
     }
 
     /// <summary>
-    /// Prints application info to the console.
+    /// Prints IBPatcher info to the console.
     /// </summary>
     private static void PrintApplicationInfo()
     {
