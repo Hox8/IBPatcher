@@ -4,6 +4,9 @@ using System.Text;
 
 namespace IBPatcher;
 
+// @TODO 1.3.1: rework mod errors + error messages completely. Do not use ErrorHelper<T>!
+// Try not to develop any further updates for CLI version of patcher...
+
 internal static class Program
 {
     internal static void Main(string[] args)
@@ -16,6 +19,19 @@ internal static class Program
 
         // Terminal "fluff" is often printed at the top of the window which we'll get rid of here
         Globals.ClearConsole();
+
+        // Create mod folders now, as this has been a confusing point for some users.
+        // This needs to be wrapped in a try catch block in case a file exists with one of these names
+        try
+        {
+            Directory.CreateDirectory("Mods/IB1");
+            Directory.CreateDirectory("Mods/IB2");
+            Directory.CreateDirectory("Mods/IB3");
+            Directory.CreateDirectory("Mods/VOTE");
+        }
+        catch
+        {
+        }
 
 #if DEBUG
         args = [@"C:\Users\User 1\Downloads\Infinity Blade II v1.3.5 (64-bit & 32-bit).ipa"];
@@ -35,7 +51,7 @@ internal static class Program
             Globals.ClearConsole();
 #else
             // Do not allow the above Unix method on Windows. Tell user to drag-and-drop instead
-            Console.WriteLine("Start the patcher by drag-and-dropping an IPA onto the executable.");
+            Console.WriteLine("Drag and drop an IPA file onto the patcher executable to get started.");
             PrepareForExit();
             return;
 #endif
@@ -61,8 +77,8 @@ internal static class Program
         // If there weren't any mods in the loaded game's mod directory, prompt the user to obtain some
         if (modContext.ModCount == 0)
         {
-            Console.WriteLine($"\n - No mods found under './{modContext.ModFolderRelative}'!\n   Place some mods in the folder and restart IBPatcher.");
-            Console.WriteLine("\n   Refer to the GitHub readme for info on how to obtain mods.");
+            Console.WriteLine($"\n - No mods found under './{modContext.ModFolderRelative}'!\n   Place mods in the folder and restart the patcher.");
+            Console.WriteLine("\n   See the included readme file for info on how to obtain mods.");
             PrepareForExit();
             return;
         }

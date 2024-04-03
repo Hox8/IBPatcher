@@ -26,6 +26,7 @@ public enum ModError
     Json_HasBadValue,
     Json_UnhandledException,
     Json_BadEncoding,
+    Json_UnsupportedVersion,
 
     // .INI
     Ini_HasNoSections,
@@ -316,9 +317,13 @@ public class ModBase : ErrorHelper<ModError>
 {
     #region Mod format members
 
+    // Reserved for future use. JSON mods using a higher version than the patcher supports will be handled appropriately
+    public const int CurrentJsonVersion = 1;
+
     public string Name;
     public Game Game;
     public List<ModFile> Files = [];
+    public int JsonVersion = CurrentJsonVersion;
 
     #endregion
 
@@ -391,7 +396,8 @@ public class ModBase : ErrorHelper<ModError>
         ModError.Json_HasTrailingComma => "A trailing comma is present in the JSON mod file.",
         ModError.Json_HasBadValue => "An invalid value is present in the JSON mod file.",
         ModError.Json_UnhandledException => "An unhandled exception occurred while parsing the JSON mod file.",
-        ModError.Json_BadEncoding => "Json mod file uses UTF-16 encoding. Please re-save with UTF-8.",
+        ModError.Json_BadEncoding => "JSON mod file uses UTF-16 encoding. Please re-save with UTF-8.",
+        ModError.Json_UnsupportedVersion => "JSON version is newer than this patcher supports. Please update if you wish to use this mod.",
 
         ModError.Ini_HasNoSections => "No sections were found within the INI mod file.",
         ModError.Ini_HasDuplicateSections => "Duplicate sections were found within the INI mod file.",
@@ -400,7 +406,7 @@ public class ModBase : ErrorHelper<ModError>
         ModError.Ini_BadSize => "'Size' must equal either '1' or '4'.",
 
         ModError.Coalesced_InvalidFile => "Not a valid Coalesced file.",
-        ModError.Coalesced_WrongGame => "Coalesced file does not match the currently-loaded game.",
+        ModError.Coalesced_WrongGame => "Coalesced file does not match the loaded game.",
         ModError.Coalesced_BadLocaleFolder => "Invalid localization subfolder.",
         ModError.Coalesced_BadLocaleExtension => "Locale file extension must match its parent folder.",
 
@@ -408,10 +414,10 @@ public class ModBase : ErrorHelper<ModError>
 
         ModError.Generic_UnspecifiedGame => "'Game' was not specified.",
         ModError.Generic_BadGame => "Game does not correspond to any valid game.",
-        ModError.Generic_WrongGame => "Mod does not target the currently loaded game.",
+        ModError.Generic_WrongGame => "Mod does not target the loaded game.",
 
         ModError.Generic_UnspecifiedFile => "'File' was not specified.",
-        ModError.Generic_FileNotFound => "File was not found within the currently-loaded IPA.",
+        ModError.Generic_FileNotFound => "File was not found within the loaded IPA.",
         ModError.Generic_FileFailedLoad => "Failed to parse file.",
 
         ModError.Generic_UnspecifiedFileType => $"'Type' was not specified.",

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
@@ -11,9 +10,11 @@ namespace IBPatcher.Mod;
 
 public static class JsonMod
 {
+    // String error codes for use with SetJsonModError()
     private const string RequiresArray = "0";
     private const string BadArrayValue = "1";
     private const string UnexpectedArrayValue = "2";
+    private const string UnsupportedJsonVersion = "3";
 
     // Microsoft does not expose this as an accessible (readonly) property, so we're doing it ourselves here.
     [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_lineNumber")]
@@ -67,17 +68,6 @@ public static class JsonMod
                     // Add new ModObject
                     else if (reader.CurrentDepth == 4)
                     {
-                        // Condense duplicate files
-                        //for (int i = mod.Files.Count - 2; i >= 0; i--)
-                        //{
-                        //    if (mod.Files[i].QualifiedIpaPath.Equals(mod.Files[^1].QualifiedIpaPath, StringComparison.OrdinalIgnoreCase))
-                        //    {
-                        //        // This file has already been added to the mod. Move it to the end of the list...
-                        //        mod.Files[^1] = mod.Files[i];
-                        //        mod.Files.RemoveAt(i);
-                        //    }
-                        //}
-
                         // Add object to current file
                         mod.Files[^1].Objects.Add(new ModObject());
                     }
@@ -128,6 +118,10 @@ public static class JsonMod
         {
             mod.SetError(ModError.Json_UnexpectedArrayValue, $"Line: {lineNumber + 1}");
         }
+        else if (e.Message == UnsupportedJsonVersion)
+        {
+            mod.SetError(ModError.Json_UnsupportedVersion);
+        }
         else
         {
             mod.SetError(ModError.Json_UnhandledException, $"Line: {lineNumber}");
@@ -147,6 +141,7 @@ public static class JsonMod
                 case "GAME": mod.Game = EnumConverters.GetGame(reader.GetString()); break;
                 case "DESCRIPTION" or "AUTHOR" or "VERSION" or "DATE": break;
                 case "FILES": if (reader.TokenType is not JsonTokenType.StartArray) Throw(RequiresArray); break;
+                case "JSONVERSION": mod.JsonVersion = reader.GetInt32(); if (mod.JsonVersion > ModBase.CurrentJsonVersion) Throw(UnsupportedJsonVersion); break;
                 default: AddModWarning(mod, _key); break;
             }
         }

@@ -59,7 +59,13 @@ public class ModContext : ErrorHelper<ModContextError>
     /// <summary> Scans and pulls in mods from the mod directory. </summary>
     public void LoadMods()
     {
-        Directory.CreateDirectory(ModFolderAbsolute);
+        // We unconditionally create all mod folders at startup, so this should be true 99% of the time
+        if (!Directory.Exists(ModFolderAbsolute))
+        {
+            // If this check returns false, this means we had a permission error or a file existed in place of the directory.
+            // Fail silently and assume the no mods found error. User should be able to quickly figure out the issue
+            return;
+        }
 
         // It's important that .bin mods are read before regular mods to ensure coalesced files are not extracted unnecessarily
         foreach (var entry in Directory.EnumerateFiles(ModFolderAbsolute, "*.bin"))

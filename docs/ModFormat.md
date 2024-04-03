@@ -89,13 +89,14 @@ JSON mods follow standard JSON syntax. Keys are not case-sensitive, and whitespa
 ### ModBase
 ModBase is the root element of the JSON which describes the core data of a mod, including metadata, target game, and required files.
 
-|      Key      | Description                                                             | Required |   Type   |
-|:-------------:|:------------------------------------------------------------------------|:--------:|:--------:|
-|    `Name`     | A string name the mod can use instead of its filename.                  |   `No`   | `String` |
-| `Description` | A string providing a brief summary on what the mod does.                |   `No`   | `String` |
-|   `Author`    | A string indicating the author(s) of the mod.                           |   `No`   | `String` |
-|    `Game`     | A string indicating the target game, e.g. `Infinity Blade II` or `IB2`. |  `Yes`   | `String` |
-|    `Files`    | An array of `ModFile` files.                                            |  `Yes`   | `Array`  |
+|      Key      | Description                                                                                                                     | Required |   Type   |
+|:-------------:|:--------------------------------------------------------------------------------------------------------------------------------|:--------:|:--------:|
+|    `Name`     | A string name the mod can use instead of its filename.                                                                          |   `No`   | `String` |
+| `Description` | A string providing a brief summary on what the mod does.                                                                        |   `No`   | `String` |
+|   `Author`    | A string indicating the author(s) of the mod.                                                                                   |   `No`   | `String` |
+|    `Game`     | A string indicating the target game, e.g. `Infinity Blade II` or `IB2`.                                                         |  `Yes`   | `String` |
+| `JsonVersion` | An integer representing the JSON syntax version used. Must be less than or equal to what the patcher supports. Defaults to `1`. |  `Yes`   | `String` |
+|    `Files`    | An array of `ModFile` files.                                                                                                    |  `Yes`   | `Array`  |
 
 ### ModFile
 ModFile describes a file within the IPA to be used by the mod.
